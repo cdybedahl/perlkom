@@ -22,7 +22,7 @@ is($mi->type,"recpt", "correct MiscInfo type in object");
 is($mi->data,6, "correct MiscInfo data in object");
 
 # Log in
-ok($kom->login(pers_no => 437, password => "Gud", invisible => 1),"logged in");
+ok($kom->login(pers_no => 12156, password => "password", invisible => 1),"logged in");
 is($kom->get_conf_stat(6)->name,"Inlägg }t mig","get_conf_stat works");
 
 # Text-mapping

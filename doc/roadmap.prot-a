@@ -33,7 +33,7 @@ Server Call	Implemented?	Description
 29		yes		delete-text: r Delete an article (29)
 30		yes		add-recipient: r Add a recipient to an article (30)
 31		yes		sub-recipient: r Remove a recipient from an article (31)
-32				add-comment: r Add a comment to an article (32)
+32		yes		add-comment: r Add a comment to an article (32)
 33				sub-comment: r Remove a comment from an article (33)
 34		OBSOLETE	get-map: O Map local text nos to global. Use 103 (34)
 35		yes/v		get-time: r Get the current time (35)

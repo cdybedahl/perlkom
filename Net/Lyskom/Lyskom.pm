@@ -452,6 +452,36 @@ sub parse_text_mapping {
     return \%res;
 }
 
+sub parse_dynamic_session_info {
+  my @arg = @_;
+  my %res;
+
+  $res{session_no} = shift @arg;
+  $res{person} = shift @arg;
+  $res{working_conference} = shift @arg;
+  $res{idle_time} = shift @arg;
+  $res{flags} = shift @arg;
+  $res{what_am_i_doing} = shift @arg;
+
+  return (\%res,@arg);
+}
+
+sub parse_dynamic_session_info_array {
+    my @arg = @_;
+    my @res;
+    my ($tmp, $aboundary);
+
+    $tmp = shift @arg;
+    $aboundary = shift @arg;
+    foreach (0..($tmp-1)) {
+	($res[$_],@arg) = parse_dynamic_session_info(@arg);
+    }
+    if ($aboundary eq '{') {
+	shift @arg;		# Throw away closing brace, if any
+    }
+    return @res;
+}
+
 ## Methods
 
 =item is_error($code, $err_no, $err_status)
@@ -1535,6 +1565,34 @@ sub user_active {
     } else {
 	return 1;
     }
+}
+
+=item who_is_on_dynamic($want_visible, $want_invisible, $active_last)
+
+Returns a list of information about sessions. If $want_visible is true, the visible users are included
+in the answer. If $want_invisible is true, invisible users are included.
+
+Only the users active the last $active_last seconds are included in the answer. If $active_last is 
+zero, all users (who match the visibility limits) are returned.
+
+=cut
+
+sub who_is_on_dynamic {
+  my $self = shift;
+  my $this = $self->{refno}++;
+  my ($want_visible, $want_invisible, $active_last) = @_;
+  my @res;
+  my $tmp;
+
+  $tmp = sprintf "%d 83 %s %d %d\n",$this,($want_visible?1:0),($want_invisible?1:0),$active_last;
+  $self->{socket}->print($tmp);
+  @res = $self->getres;
+  if ($self->is_error(@res)) {
+    return 0;
+  } else {
+    shift @res;		# Remove return code
+    return parse_dynamic_session_info_array(@res);
+  }
 }
 
 =item create_text

@@ -70,7 +70,7 @@ our %type = (
 	     rec_time => 7,
 	     sent_by => 8,
 	     sent_at => 9,
-	     bcc_recpt => 10
+	     bcc_recpt => 15
 	    );
 
 our %epyt = reverse %type;

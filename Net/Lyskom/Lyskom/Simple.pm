@@ -33,7 +33,7 @@ sub new {
 
     $s->{conn} = Net::Lyskom->new(Host => $serv)
       or croak "Failed to connect to server.\n";
-    $s->{conn}->login(pers_no => $s->n2n($uname), password => $pass)
+    $s->{conn}->login(pers_no => $s->n2n($uname), password => $pass, invisible => 1)
       or croak "Login failed: $s->{conn}->{err_string}\n";
 
     return $s;
@@ -69,6 +69,7 @@ sub post {
     my $subj = shift;
     my $body = shift;
     my @aux;
+    my $ret;
 
     while (@_) {
 	my $tag = shift;
@@ -76,13 +77,15 @@ sub post {
 	push @aux, $s->aux($tag,$data)
     }
 
-    $s->{conn}->create_text(
-			    recpt => [$s->n2n($conf)],
-			    subject => $subj,
-			    body => $body,
-			    aux => [@aux]
-			   )
-      or croak "Text creation failed: $s->{conn}->{err_string}.\n";
+    $ret = $s->{conn}->create_text(
+				   recpt => [$s->n2n($conf)],
+				   subject => $subj,
+				   body => $body,
+				   aux => [@aux]
+				  )
+      or croak "Text creation failed: $s->{conn}->{err_string}.\n";;
+
+    return $ret;
 }
 
 1;

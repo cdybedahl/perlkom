@@ -1798,11 +1798,11 @@ sub create_conf {
 		($arg{forbid_secret}?"1":"0");
 
     return $self->gen_call_scalar(88,
-				  $arg{name},
+				  holl($arg{name}),
 				  $type,
 				  scalar @{$arg{aux}},
 				  '{',
-				  map {$_->to_server} @{$arg{aux}},
+				  map ({$_ and $_->to_server} @{$arg{aux}}),
 				  '}'
 				 );
 }
@@ -1820,12 +1820,16 @@ sub create_person {
     croak "Tried to create person without name" unless $arg{name};
     croak "Tried to create person without password" unless $arg{password};
     $arg{unread_is_secret} = 0 unless $arg{unread_is_secret};
+    $arg{aux} = [] unless $arg{aux};
     my $type = sprintf "%s0000000", ($arg{unread_is_secret}?"1":"0");
 
-    return $self->gen_call_scalar(89, $arg{name}, $arg{password}, $type,
+    return $self->gen_call_scalar(89,
+				  holl($arg{name}),
+				  holl($arg{password}),
+				  $type,
 				  scalar @{$arg{aux}},
 				  '{',
-				  map {$_->to_server} @{$arg{aux}},
+				  map ({$_ and $_->to_server} @{$arg{aux}}),
 				  '}'
 				 );
 }

@@ -4,6 +4,7 @@ use strict;
 use IO::Socket;
 use Time::Local;
 use Net::Lyskom::AuxItem;
+use Carp;
 
 use vars qw{
 	    @miscinfo_names
@@ -425,7 +426,7 @@ sub parse_text_mapping {
 	my $delim = shift @arg;
 
 	if ($delim eq '*') {
-	    die "Strange text-list: $c $delim\n";
+	    croak "Strange text-list: $c $delim\n";
 	}
 	foreach (0..($c-1)) {
 	    my $global = shift @arg;
@@ -439,7 +440,7 @@ sub parse_text_mapping {
 	my $delim = shift @arg;
 
 	if ($delim eq '*') {
-	    die "Strange text-number-pair array count: $c $delim\n";
+	    croak "Strange text-number-pair array count: $c $delim\n";
 	}
 	foreach (0..($c-1)) {
 	    my $k = shift @arg;
@@ -517,7 +518,7 @@ sub is_error {
 	$self->{err_string} = $error[$err_no];
 	return 1;		# Is an error
     } else {
-	die "An unknown error? ($code)\n";
+	croak "An unknown error? ($code)\n";
     }
 }
 
@@ -555,7 +556,7 @@ sub new {
 					    PeerAddr => $host,
 					    PeerPort => $port,
 					   )
-      or die "Can't connect to remote server: $!\n";
+      or croak "Can't connect to remote server: $!\n";
 
     $self->{socket}->print("A".holl($name)."\n");
 

@@ -150,7 +150,7 @@ sub is_error {
 	$self->{err_status} = 0;
 	$self->{err_string} = "";
 	return 0;		# Not an error
-    } elsif ($code =~ /^%% /) {
+    } elsif ($code =~ /^%%/) {
 	$self->{err_no} = 4711;
 	$self->{err_status} = $err_status;
 	$self->{err_string} = "Protocol error!";

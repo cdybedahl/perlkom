@@ -84,7 +84,7 @@ Server Call	Implemented?	Description
 80				accept-async: r Select asynchronous messages to receive (80)
 81				query-async: r Ask server which async messages are sent (81)
 82		yes		user-active: r Tell the server that the user is active (82)
-83				who-is-on-dynamic: r Get a list of active users (83)
+83		yes/v		who-is-on-dynamic: r Get a list of active users (83)
 84				get-static-session-info: r Get static information about a session (84)
 85				get-collate-table: r Get the current collate table (85)
 86		yes		create-text: r Create a text (86)

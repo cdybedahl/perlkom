@@ -1209,6 +1209,51 @@ sub send_message {
     }
 }
 
+=item add_recipient($text_no, $conf_no, $recpt_type)
+
+Add a recipient to a text.
+
+=cut
+
+sub add_recipient {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $textno = shift;
+    my $confno = shift;
+    my $recpttype = shift;
+    my @res;
+
+    $self->{socket}->print("$this 30 $textno $confno $recpttype\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
+=item sub_recipient($text_no, $conf_no)
+
+Remove a recipient from a text.
+
+=cut
+
+sub sub_recipient {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $textno = shift;
+    my $confno = shift;
+    my @res;
+
+    $self->{socket}->print("$this 31 $textno $confno\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
 =item who_am_i
 
 Get the session number of the current session.
@@ -1532,7 +1577,7 @@ sub create_text {
 
 =item get_text_stat($textno)
 
-Hämta status för en text från servern.
+Fetch the status for a text from the server.
 
 =cut
 
@@ -1662,6 +1707,8 @@ __END__
 =item Calle Dybedahl <calle@lysator.liu.se>
 
 =item Erik S-O Johansson <fl@erp.nu>
+
+=item Hans Persson <unicorn@lysator.liu.se>
 
 =head1 SEE ALSO
 

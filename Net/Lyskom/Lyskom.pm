@@ -1,44 +1,18 @@
 package Net::Lyskom;
 
-use 5.006;
 use strict;
-use warnings;
 use IO::Socket;
 use Time::Local;
 
+use vars qw{
+	    @miscinfo_names
+	    @error
+	   };
+
+
 my $debug = 0;
 
-require Exporter;
-use AutoLoader qw(AUTOLOAD);
-
-our @ISA = qw(Exporter);
-
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-
-# This allows declaration	use Net::Lyskom ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
-our %EXPORT_TAGS = ( 'all' => [ qw(
-	
-) ] );
-
-our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
-
-our @EXPORT = qw(
-	
-);
-our $VERSION = '0.01';
-
-
-# Preloaded methods go here.
-
-# Autoload methods go after =cut, and are processed by the autosplit program.
-
-1;
-__END__
-# Below is stub documentation for your module. You better edit it!
+$Net::Lyskom::VERSION = '0.02';
 
 =head1 NAME
 
@@ -186,7 +160,7 @@ sub parse_time {
      $res{year},
      $res{day_of_week},
      $res{day_of_year},
-     $res{is-dst},
+     $res{is_dst},
      @arg) = @arg;
 
     $res{time} = timelocal(
@@ -439,7 +413,7 @@ sub parse_text_mapping {
     my @arg = @_;
     my %res;
     my $densep;
-    
+
     $res{range_begin} = shift @arg;
     $res{range_end} = shift @arg;
     $res{later_exists} = shift @arg;
@@ -707,6 +681,7 @@ sub change_what_i_am_doing {
     my $self = shift;
     my $this = $self->{refno}++;
     my $what_am_i_doing = shift;
+    my @res;
 
     $self->{socket}->print($this . ' 4 ' . holl($what_am_i_doing) . ' ');
     @res = $self->getres;
@@ -771,7 +746,7 @@ Plockar bort personen $pers_no som medlem från $conf_no
 
 =cut
 
-sub set_garb_nice {
+sub sub_member {
     my $self = shift;
     my $this = $self->{refno}++;
     my $conf_no = shift;
@@ -800,7 +775,7 @@ sub set_presentation {
     my $text_no = shift;
     my @res;
 
-    $self->{socket}->print($this . ' 16 ' . $conf_no . ' ' . $text-no . ' ');
+    $self->{socket}->print($this . ' 16 ' . $conf_no . ' ' . $text_no . ' ');
     @res = $self->getres;
     if ($self->is_error(@res)) {
 	return 0;
@@ -1579,10 +1554,11 @@ sub local_to_global {
 
 __END__
 
-=head1 AUTHOR
+=head1 AUTHORS
 
-Calle Dybedahl <calle@lysator.liu.se>
-Erik S-O Johansson <fl@erp.nu>
+=item Calle Dybedahl <calle@lysator.liu.se>
+
+=item Erik S-O Johansson <fl@erp.nu>
 
 =head1 SEE ALSO
 

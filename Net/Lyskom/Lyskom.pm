@@ -24,7 +24,7 @@ use Carp;
 use vars qw{ @error };
 
 
-our $VERSION = '1.0rc1';
+our $VERSION = '1.0';
 
 =head1 NAME
 

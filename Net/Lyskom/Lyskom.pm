@@ -507,7 +507,7 @@ sub new {
     my $self = {};
     my %arg = @_;
 
-    my $host = $arg{Host} || "pc123.byggdok.se" || "kom.lysator.liu.se";
+    my $host = $arg{Host} || "kom.lysator.liu.se";
     my $port = $arg{Port} || 4894;
 
     my $name =

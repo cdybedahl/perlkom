@@ -329,12 +329,11 @@ sub parse_array {
 
     $tmp = shift @arg;
     $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = shift @arg;
-    }
+    @res = splice @arg, 0, $tmp;
     if ($aboundary eq '{') {
 	shift @arg;		# Throw away closing brace, if any
     }
+
     return (\@res,@arg);
 }
 
@@ -1690,6 +1689,28 @@ sub local_to_global {
     } else {
 	shift @res;		# Remove return code
 	return parse_text_mapping(@res);
+    }
+}
+
+=item butt_ugly_fast_reply($text, $data)
+
+Adds a fast-reply auxitem with the contents $data to the text $text.
+
+=cut
+
+sub butt_ugly_fast_reply {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my ($text, $data) = @_;
+    my @res;
+
+    $self->{socket}->print("$this 92 $text 0 { } 1 { 2 00000000 0 " .
+                       holl($data) . "}\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
     }
 }
 

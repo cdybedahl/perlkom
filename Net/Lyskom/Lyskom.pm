@@ -1,20 +1,30 @@
 package Net::Lyskom;
+use base qw{Net::Lyskom::Object};
 
 use strict;
 use IO::Socket;
 use Time::Local;
 use Net::Lyskom::AuxItem;
+use Net::Lyskom::MiscInfo;
+use Net::Lyskom::Time;
+use Net::Lyskom::TextStat;
+use Net::Lyskom::Conference;
+use Net::Lyskom::Person;
+use Net::Lyskom::Util qw(:all);
+use Net::Lyskom::Membership;
+use Net::Lyskom::TextMapping;
+use Net::Lyskom::ConfZInfo;
+use Net::Lyskom::DynamicSession;
+use Net::Lyskom::StaticSession;
+use Net::Lyskom::Member;
+use Net::Lyskom::Info;
+
 use Carp;
 
-use vars qw{
-	    @miscinfo_names
-	    @error
-	   };
+use vars qw{ @error };
 
 
-my $debug = 0;
-
-$Net::Lyskom::VERSION = '0.02';
+our $VERSION = '1.0rc1';
 
 =head1 NAME
 
@@ -27,15 +37,16 @@ Net::Lyskom - Perl module used to talk to LysKOM servers.
   $a = Net::Lyskom->new();
   $conf = 6;
 
-  $a->login(437,"God",1)
+  $a->login(pers_no => 437, password => "God", invisible => 1)
     or die "Failed to log in: $a->{err_string}\n";
 
-  $b = $a->create_text(
-	  	       "Testsubject\nA nice and tidy message body.",
-		       [to => 437],
-		      );
-
   $b = $a->send_message(7680, "Oook!");
+
+  $b = $a->create_text(
+	  	       subject => "Testsubject",
+                       body => "A nice and tidy message body.",
+		       recpt => [437],
+		      );
 
   if ($b) {
       print "Text number $b created.\n";
@@ -46,8 +57,8 @@ Net::Lyskom - Perl module used to talk to LysKOM servers.
 =head1 DESCRIPTION
 
 Net::Lyskom is a module used to talk to LysKOM servers. This far
-it lacks a lot of functions, but there is enough functions implemented
-to program statistic robots and such.
+it lacks a lot of functions, but there are enough functions implemented
+to program statistics robots and such.
 
 =head2 Metoder
 
@@ -56,25 +67,6 @@ to program statistic robots and such.
 =cut
 
 ## Variables
-
-@miscinfo_names = (
-		   "Mottagare",
-		   "Extra kopie-mottagare",
-		   "Kommentar till",
-		   "Kommenterad i",
-		   "Fotnot till",
-		   "Fotnot i",
-		   "Lokalt nummer",
-		   "Mottagen",
-		   "Adderad av",
-		   "Adderad vid",
-		   "",
-		   "",
-		   "",
-		   "",
-		   "",
-		   "Blind extra kopie-mottagare"
-		  );
 
 
 @error = qw(no-error
@@ -133,355 +125,6 @@ to program statistic robots and such.
 	    message-not-sent
 	    invalid-membership-type);
 
-
-## Helper functions
-
-
-sub debug {
-    unless (@_) {
-	print STDERR "debug() called without arguments.\n";
-	return;
-    }
-    print STDERR @_ if $debug;
-    print STDERR "\n" if $debug;
-}
-
-sub holl {
-    return length($_[0])."H".$_[0];
-}
-
-sub parse_time {
-    my @arg = @_;
-    my %res;
-
-    ($res{seconds},
-     $res{minutes},
-     $res{hours},
-     $res{day},
-     $res{month},
-     $res{year},
-     $res{day_of_week},
-     $res{day_of_year},
-     $res{is_dst},
-     @arg) = @arg;
-
-    $res{time} = timelocal(
-			   $res{seconds},
-			   $res{minutes},
-			   $res{hours},
-			   $res{day},
-			   $res{month},
-			   $res{year});
-
-    return (\%res,@arg);
-}
-
-sub parse_aux_item_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = parse_aux_item(@arg);
-    }
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-    return (\@res,@arg);
-}
-
-sub parse_misc_info_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = parse_misc_info(@arg);
-    }
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-    return (\@res,@arg);
-}
-
-sub parse_misc_info {
-    my @arg = @_;
-    my %res;
-
-    $res{type} = shift @arg;
-    if ($res{type} == 0) {	# recipient
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 1) {	# cc-recipient
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 2) {	# comment-to
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 3) {	# commented-in
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 4) {	# footnote-to
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 5) {	# footnoted-in
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 6) {	# local-no
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 7) {	# recieved-at
-	($res{data},@arg) = parse_time @arg;
-    } elsif ($res{type} == 8) {	# sender
-	$res{data} = shift @arg;
-    } elsif ($res{type} == 9) {	# sent-at
-	($res{data},@arg) = parse_time @arg;
-    } elsif ($res{type} == 15) { # bcc-recipient
-	$res{data} = shift @arg;
-    } else {
-	debug "Unkown misc-info type: $res{type}\n";
-	$res{data} = "BOGUS";
-    };
-
-    return (\%res,@arg);
-}
-
-sub parse_aux_item {
-    my @arg = @_;
-    my %res;
-
-    $res{aux_no} = shift @arg;
-    $res{tag} = shift @arg;
-    $res{creator} = shift @arg;
-    ($res{created_at},@arg) = parse_time(@arg);
-    $res{flags} = shift @arg;
-    $res{inherit_limit} = shift @arg;
-    $res{data} = shift @arg;
-
-    return (\%res,@arg);
-}
-
-sub parse_conf_stat {
-    my @arg = @_;
-    my %res;
-
-    $res{name} = shift @arg;
-    $res{type} = shift @arg;
-    ($res{creation_time},@arg) = parse_time(@arg);
-    ($res{last_written},@arg) = parse_time(@arg);
-    $res{creator} = shift @arg;
-    $res{presentation} = shift @arg;
-    $res{supervisor} = shift @arg;
-    $res{permitted_submitters} = shift @arg;
-    $res{super_conf} = shift @arg;
-    $res{msg_of_day} = shift @arg;
-    $res{nice} = shift @arg;
-    $res{keep_commented} = shift @arg;
-    $res{no_of_members} = shift @arg;
-    $res{first_local_no} = shift @arg;
-    $res{no_of_texts} = shift @arg;
-    $res{expire} = shift @arg;
-    ($res{aux_items},@arg) = parse_aux_item_array(@arg);
-
-    return \%res;
-}
-
-sub parse_text_stat {
-    my @arg = @_;
-    my %res;
-
-    ($res{creation_time},@arg) = parse_time(@arg);
-    $res{author} = shift @arg;
-    $res{no_of_lines} = shift @arg;
-    $res{no_of_chars} = shift @arg;
-    $res{no_of_marks} = shift @arg;
-    ($res{misc_info},@arg) = parse_misc_info_array(@arg);
-    ($res{aux_items},@arg) = parse_aux_item_array(@arg);
-    
-    return \%res;
-}
-
-sub parse_person_stat {
-    my @arg = @_;
-    my %res;
-
-    $res{username} = shift @arg;
-    $res{privileges} = shift @arg;
-    $res{flags} = shift @arg;
-    ($res{last_login},@arg) = parse_time(@arg);
-    $res{user_area} = shift @arg;
-    $res{total_time_present} = shift @arg;
-    $res{sessions} = shift @arg;
-    $res{created_lines} = shift @arg;
-    $res{created_bytes} = shift @arg;
-    $res{read_texts} = shift @arg;
-    $res{no_of_texts_fetched} = shift @arg;
-    $res{created_persons} = shift @arg;
-    $res{created_confs} = shift @arg;
-    $res{first_created_local_no} = shift @arg;
-    $res{created_texts} = shift @arg;
-    $res{no_of_marks} = shift @arg;
-    $res{no_of_confs} = shift @arg;
-
-    return (\%res,@arg);
-}
-
-sub parse_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    @res = splice @arg, 0, $tmp;
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-
-    return (\@res,@arg);
-}
-
-sub parse_membership {
-    my @arg = @_;
-    my %res;
-
-    $res{position} = shift @arg;
-    ($res{last_time_read},@arg) = parse_time(@arg);
-    $res{conference} = shift @arg;
-    $res{priority} = shift @arg;
-    $res{last_text_read} = shift @arg;
-    ($res{read_texts},@arg) = parse_array(@arg);
-    $res{added_by} = shift @arg;
-    ($res{added_at},@arg) = parse_time(@arg);
-    $res{type} = shift @arg;
-
-    return (\%res,@arg);
-}
-
-sub parse_membership_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = parse_membership(@arg);
-    }
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-
-    return @res;
-}
-
-sub parse_version_info {
-    my @arg = @_;
-    my %res;
-
-    $res{protocol_version} = shift @arg;
-    $res{server_software} = shift @arg;
-    $res{software_version} = shift @arg;
-
-    return \%res;
-}
-
-sub parse_conf_z_info {
-    my @arg = @_;
-    my %res;
-
-    $res{name} = shift @arg;
-    $res{type} = shift @arg;
-    $res{conf_no} = shift @arg;
-
-    return (\%res,@arg);
-}
-
-sub parse_conf_z_info_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = parse_conf_z_info(@arg);
-    }
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-    return @res;
-}
-
-sub parse_text_mapping {
-    my @arg = @_;
-    my %res;
-    my $densep;
-
-    $res{range_begin} = shift @arg;
-    $res{range_end} = shift @arg;
-    $res{later_exists} = shift @arg;
-    $densep = shift @arg;
-
-    if ($densep) {
-	my $local = shift @arg;
-	my $c = shift @arg;
-	my $delim = shift @arg;
-
-	if ($delim eq '*') {
-	    croak "Strange text-list: $c $delim\n";
-	}
-	foreach (0..($c-1)) {
-	    my $global = shift @arg;
-
-	    $res{local}[$local] = $global;
-	    ++$local;
-	}
-	shift @arg if $delim eq '{';
-    } else {
-	my $c = shift @arg;
-	my $delim = shift @arg;
-
-	if ($delim eq '*') {
-	    croak "Strange text-number-pair array count: $c $delim\n";
-	}
-	foreach (0..($c-1)) {
-	    my $k = shift @arg;
-
-	    my $v = shift @arg;
-	    $res{local}[$k] = $v;
-	}
-	shift @arg if $delim eq '{';
-    }
-    return \%res;
-}
-
-sub parse_dynamic_session_info {
-  my @arg = @_;
-  my %res;
-
-  $res{session_no} = shift @arg;
-  $res{person} = shift @arg;
-  $res{working_conference} = shift @arg;
-  $res{idle_time} = shift @arg;
-  $res{flags} = shift @arg;
-  $res{what_am_i_doing} = shift @arg;
-
-  return (\%res,@arg);
-}
-
-sub parse_dynamic_session_info_array {
-    my @arg = @_;
-    my @res;
-    my ($tmp, $aboundary);
-
-    $tmp = shift @arg;
-    $aboundary = shift @arg;
-    foreach (0..($tmp-1)) {
-	($res[$_],@arg) = parse_dynamic_session_info(@arg);
-    }
-    if ($aboundary eq '{') {
-	shift @arg;		# Throw away closing brace, if any
-    }
-    return @res;
-}
 
 ## Methods
 
@@ -621,12 +264,19 @@ sub getres_sub {
 	    if ($r eq "") {
 		$r = $self->{socket}->getline;
 	    }
+	    $r =~ s/^ //;
 	} else {
 	    ($f, $r) = split " ", $r, 2;
 	    push @res,$f;
 	}
     }
     return @res;
+}
+
+sub send {
+    my $s = shift;
+
+    $s->{socket}->print(@_);
 }
 
 =item handle_asynch()
@@ -643,6 +293,8 @@ sub handle_asynch {
     #debug "Asynch: @call";
 }
 
+## Server calls
+
 =item logout
 
 Log out from LysKOM, this call does not disconnect the session, which
@@ -654,16 +306,8 @@ means you can login again without the need of calling another new.
 
 sub logout {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my @res;
 
-    $self->{socket}->print($this . ' 1 ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(1);
 }
 
 =item change_conference ($conference)
@@ -676,17 +320,9 @@ Changes current conference of the session.
 
 sub change_conference {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conference = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 2 ' . $conference . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(2,$conference);
 }
 
 =item change_name ($conference, $new_name)
@@ -699,18 +335,10 @@ Change name of the person or conference numbered $conference to $new_name.
 
 sub change_name {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conference = shift;
     my $new_name = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 3 ' . $conference . ' ' . holl($new_name) . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(3, $conference, holl($new_name));
 }
 
 =item change_what_i_am_doing ($what_am_i_doing)
@@ -724,66 +352,67 @@ this call creatively.
 
 sub change_what_i_am_doing {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $what_am_i_doing = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 4 ' . holl($what_am_i_doing) . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(4, holl($what_am_i_doing));
 }
 
-=item set_priv_bits($person, $privileges)
+=item set_priv_bits($person, admin => 1, wheel => 1, statistic => 1, create_pers => 1, create_conf => 1, change_name => 1)
 
-Set the privbits on person $person to $privileges
-
-    $a->set_priv_bits(6,'0010000000000000');
+Set the privbits on person $person. User can specify one or more
+privileges by name. Privs not specified default to false.
 
 =cut
 
 sub set_priv_bits {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $person = shift;
-    my $privileges = shift;
-    my @res;
+    my %priv = (
+		wheel => 0,
+		admin => 0,
+		statistic => 0,
+		create_pers => 0,
+		create_conf => 0,
+		change_name => 0
+	       );
+    my %arg = @_;
 
-    $self->{socket}->print($this . ' 7 ' . $person . ' ' . $privileges . "\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
+    foreach (keys %arg) {
+	$priv{$_} = $arg{$_}
     }
+
+    my $pstring = join "", map {$_?"1":"0"}
+      (
+       $priv{wheel},
+       $priv{admin},
+       $priv{statistic},
+       $priv{create_pers},
+       $priv{create_conf},
+       $priv{change_name},
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+      );
+
+    return $self->gen_call_boolean(7, $person, $pstring);
 }
 
-=item set_passwd($person, $old_pwd, $new_pwd) 
+=item set_passwd(person => $person, old_pwd => $old, new_pwd => $new)
 
 Changes the password of $person to $new_pwd.
 
-$old_pwd is the password of the currently logged in person.
+$old is the password of the currently logged in person. All three
+arguments are required.
 
 =cut
 
 sub set_passwd {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my $person = shift;
-    my $old_pwd = shift;
-    my $new_pwd = shift;
-    my @res;
+    my %arg = @_;
 
-    $self->{socket}->print($this . ' 8 ' . $person . ' ' . holl($old_pwd) . ' ' . holl($new_pwd) . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(8,
+				   $arg{person},
+				   holl($arg{old_pwd}),
+				   holl($arg{new_pwd})
+				  );
 }
 
 =item delete_conf($conf)
@@ -797,17 +426,9 @@ the corresponding user is also deleted.
 
 sub delete_conf {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 11 ' . $conf . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(11, $conf);
 }
 
 =item sub_member($conf_no, $pers_no)
@@ -821,18 +442,10 @@ conference $conf_no.
 
 sub sub_member {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $pers_no = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 15 ' . $conf_no . ' ' . $pers_no . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(15, $conf_no, $pers_no);
 }
 
 =item set_presentation($conf_no, $text_no)
@@ -846,18 +459,10 @@ To remove a presentation, use $text_no = 0
 
 sub set_presentation {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $text_no = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 16 ' . $conf_no . ' ' . $text_no . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(16, $conf_no, $text_no);
 }
 
 =item set_etc_motd($conf_no, $text_no)
@@ -866,24 +471,17 @@ Sets the messages of the day on the conference or person $conf_no to
 $text_no and removes the old message.
 
     $a->set_etc_motd(6,1);
-    
+
 =cut
 
 sub set_etc_motd {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $text_no = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 17 ' . $conf_no . ' ' . $text_no . "\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(17, $conf_no, $text_no);
 }
+
 
 =item set_supervisor($conf_no, $admin)
 
@@ -894,41 +492,25 @@ conference $conf_no
 
 sub set_supervisor {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $admin = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 18 ' . $conf_no . ' ' . $admin . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(18, $conf_no, $admin);
 }
 
 =item set_permitted_submitters($conf_no, $perm_sub)
 
-Set $perm_sub as permitted subscribers for $conf_no. If $perl_sum = 0, all users are
-welcome to write in the conference.
+Set $perm_sub as permitted subscribers for $conf_no. If $perm_sub = 0,
+all users are welcome to write in the conference.
 
 =cut
 
 sub set_permitted_submitters {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $perm_sub = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 19 ' . $conf_no . ' ' . $perm_sub . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(19, $conf_no, $perm_sub);
 }
 
 =item set_super_conf($conf_no, $super_conf)
@@ -939,18 +521,10 @@ Sets the conference $super_conf as super conference for $conf_no
 
 sub set_super_conf {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $super_conf = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 20 ' . $conf_no . ' ' . $super_conf . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(20, $conf_no, $super_conf);
 }
 
 =item set_garb_nice($conf_no, $nice)
@@ -963,53 +537,41 @@ Sets the garb time for the conference $conf_no to $nice days.
 
 sub set_garb_nice {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $nice = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 22 ' . $conf_no . ' ' . $nice, ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(22, $conf_no, $nice);
 }
 
-=item get_text($text, $start_char, $end_char)
+=item get_text(text => $text, start_char => $start, end_char => $end)
 
-Get a text from the server, the first argument, $text, is the global
+Get a text from the server, the first argument, C<text>, is the global
 text number for the text to get. The retrival stars at position
-$start_char (the first character in the text is numbererd 0) and ends
-at position $end_char.
+C<start_char> (the first character in the text is numbered 0) and ends
+at position C<end_char>.
 
-Default is 0 for $start_char and 2147483647 for $end_char. This means
-that a complete message is fetched, unless otherwise stated.
+Default is 0 for C<start_char> and 2147483647 for C<end_char>. This
+means that a complete message is fetched, unless otherwise stated.
+
+Also note that you can get an entire text, pre-split into subject and
+body, via the object returned from the C<get_text_stat> method.
 
 To get the first 100 chars from text 4711:
 
-    my $text = $a->get_text(4711, 0, 100);
+    my $text = $a->get_text(text => 4711, start_char => 0, end_char => 100);
 
 =cut
 
 sub get_text {
     my $self = shift;
-    my ($text, $start_char, $end_char) = @_;
-    my $this = $self->{refno}++;
+    my %arg = @_;
     my @res;
 
-    $text = 4711 unless $text;
-    $start_char = 0 unless $start_char;
-    $end_char = 2147483647 unless $end_char;
+    $arg{text} = 4711 unless $arg{text};
+    $arg{start_char} = 0 unless $arg{start_char};
+    $arg{end_char} = 2147483647 unless $arg{end_char};
 
-    $self->{socket}->print("$this 25 $text $start_char $end_char\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return $res[1]
-    }
+    return $self->gen_call_scalar(25, $arg{text}, $arg{start_char}, $arg{end_char});
 }
 
 =item delete_text($text)
@@ -1020,40 +582,32 @@ Deletes the text with the global text number $text from the database.
 
 sub delete_text {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $text = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 29 ' . $text . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(29, $text);
 }
 
-=item add_recipient($text_no, $conf_no, $recpt_type)
+=item add_recipient(text_no => $text, conf_no => $conf, type => $type)
 
-Add a recipient to a text.
+Add a recipient to a text. $type can be one of "recpt", "cc" or "bcc". 
+If not given (or if set to something other than one of those three
+strings) it defaults to "recpt". C<text_no> and C<conf_no> are
+required.
 
 =cut
 
 sub add_recipient {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my $textno = shift;
-    my $confno = shift;
-    my $recpttype = shift;
-    my @res;
+    my %arg = @_;
 
-    $self->{socket}->print("$this 30 $textno $confno $recpttype\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
+    if ($arg{type} eq "bcc") {
+	$arg{type} = 15
+    } elsif ($arg{type} eq "cc") {
+	$arg{type} = 1
     } else {
-	return 1;
+	$arg{type} = 0
     }
+    return $self->gen_call_boolean(30,$arg{text_no},$arg{conf_no},$arg{type});
 }
 
 =item sub_recipient($text_no, $conf_no)
@@ -1064,18 +618,10 @@ Remove a recipient from a text.
 
 sub sub_recipient {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $textno = shift;
     my $confno = shift;
-    my @res;
 
-    $self->{socket}->print("$this 31 $textno $confno\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(31, $textno, $confno);
 }
 
 =item add_comment($text_no, $comment_to)
@@ -1088,39 +634,28 @@ to add comment links after a text has been created.
 
 sub add_comment {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $textno = shift;
     my $commentto = shift;
-    my @res;
 
-    $self->{socket}->print("$this 32 $textno $commentto\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(32, $textno, $commentto);
 }
 
 =item get_time
 
-Ask the server for the current time.
+Ask the server for the current time. Returns a L<Net::Lyskom::Time> object.
 
 =cut
 
 sub get_time {
     my $self = shift;
-    my $this = $self->{refno}++;
     my @res;
 
-    $self->{socket}->print($this . ' 35 ');
-    @res = $self->getres;
+    @res = $self->server_call(35);
     if ($self->is_error(@res)) {
-	return ();
+	return undef;
     } else {
 	shift @res;    # Remove return code
-	(my $time, undef) = parse_time(@res);
-	return $time;
+	return Net::Lyskom::Time->new_from_stream(\@res);
     }
 }
 
@@ -1132,18 +667,10 @@ Only read the $no_of_unread texts in the conference $conf_no.
 
 sub set_unread {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $conf_no = shift;
     my $no_of_unread = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 40 ' . $conf_no . ' ' . $no_of_unread, ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(40, $conf_no, $no_of_unread);
 }
 
 =item set_motd_of_lyskom($text_no)
@@ -1155,17 +682,9 @@ with the proper privileges enabled.
 
 sub set_motd_of_lyskom {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $text_no = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 41 ' . $text_no . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(41, $text_no);
 }
 
 =item enable($level)
@@ -1176,17 +695,9 @@ Sets the security level for the current session to $level.
 
 sub enable {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $level = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 42 ' . $level . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(42, $level);
 }
 
 =item sync_kom
@@ -1200,16 +711,8 @@ databas is current. This call is privileged in most implementations.
 
 sub sync_kom {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my @res;
 
-    $self->{socket}->print($this . ' 43 ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(43);
 }
 
 =item shutdown_kom($exit_val)
@@ -1221,38 +724,29 @@ currently not used.
 
 sub shutdown_kom {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $exit_val = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 44 ' . $exit_val . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(44, $exit_val);
 }
 
 =item get_person_stat($persno)
 
-Get status for a person from the server.
+Get status for a person from the server. Returns a L<Net::Lyskom::Person>
+object.
 
 =cut
 
 sub get_person_stat {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $persno = shift;
     my @res;
 
-    $self->{socket}->print("$this 49 $persno\n");
-    @res = $self->getres;
+    @res = $self->server_call(49, $persno);
     if ($self->is_error(@res)) {
 	return 0;
     } else {
 	shift @res;		# Remove return code
-	return parse_person_stat(@res);
+	return Net::Lyskom::Person->new_from_stream(\@res);
     }
 }
 
@@ -1267,18 +761,15 @@ may have unread texts.
 
 sub get_unread_confs {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $pers_no = shift;
     my @res;
 
-    $self->{socket}->print($this . ' 52 ' . $pers_no . ' ');
-    @res = $self->getres;
+    @res = $self->server_call(52, $pers_no);
     if ($self->is_error(@res)) {
 	return ();
     } else {
 	shift @res;    # Remove return code
-	(@res, undef) = parse_array(@res);
-	return @res;
+	return parse_array_stream(sub{shift @{$_[0]}},\@res);
     }
 
 }
@@ -1293,21 +784,10 @@ sessions that are logged in.
 
 sub send_message {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $recipient = shift;
     my $message = shift;
-    my $tmp;
-    my @res;
 
-    $tmp = "$this 53 $recipient ".holl($message)." ";
-
-    $self->{socket}->print($tmp);
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	return $res[0];
-    }
+    return $self->gen_call_boolean(53, $recipient, holl($message));
 }
 
 =item who_am_i
@@ -1320,87 +800,56 @@ Get the session number of the current session.
 
 sub who_am_i {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my @res;
 
-    $self->{socket}->print($this . ' 56 ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	shift @res;    # Remove return code
-	return $res[0];
-    }
-
+    return $self->gen_call_scalar(56);
 }
 
-=item get_last_text
+=item get_last_text($time)
+
+$time should be given a as a unix time_t (that is, as the number of
+seconds since 00:00:00 01 Jan 1970 UCT).
 
 =cut
 
 sub get_last_text {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $time = shift;
-    my @res;
-    my $tmp;
-    
+
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
                                                 localtime($time);
-    $tmp = sprintf("%d 58 %d %d %d %d %d %d %d %d %d\n",
-		   $this,$sec,$min,$hour,$mday,$mon,$year,$wday,$yday,
-		   ($isdst?1:0));
-    $self->{socket}->print($tmp);
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	shift @res;		# Remove return code
-	return $res[0];
-    }
+    return $self->gen_call_scalar(58,$sec,$min,$hour,$mday,$mon,$year,$wday,
+				  $yday,($isdst?1:0));
 }
 
-=item find_next_text_no
+=item find_next_text_no($text_no)
+
+Returns the global number of the readable text that follows the text
+C<$text_no>.
 
 =cut
 
 sub find_next_text_no {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $start = shift;
-    my @res;
 
-    $self->{socket}->print("$this 60 $start\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	shift @res;		# Remove return code
-	return $res[0];
-    }
+    return $self->gen_call_scalar(60, $start);
 }
 
-=item find_previous_text_no
+=item find_previous_text_no($text_no)
+
+Returns the global number of the readable text that precedes the text
+C<$text_no>.
 
 =cut
 
 sub find_previous_text_no {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $start = shift;
-    my @res;
 
-    $self->{socket}->print("$this 61 $start\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	shift @res;		# Remove return code
-	return $res[0];
-    }
+    return $self->gen_call_scalar(61, $start);
 }
 
-=item login($persno, $pwd, $invis)
+=item login(pers_no => $pers, password => $pwd, invisible => $invis)
 
 Log in to LysKOM. $persno is the number of the person which is to be
 logged in. $pwd is the password of that person. If $invis is true, a
@@ -1410,19 +859,12 @@ secret login is done (the session is not visible in who-is-on-lists et al.)
 
 sub login {
     my $self = shift;
-    my ($persno, $pwd, $invis) = @_;
-    my $this = $self->{refno}++;
-    my $tmp;
-    my @res;
+    my %arg = @_;
 
-    $tmp = join (" ", $this, 62, $persno, holl($pwd), ($invis)?1:0 );
-    $self->{socket}->print("$tmp\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(62,
+				   $arg{pers_no},
+				   holl($arg{password}),
+				   ($arg{invisible})?1:0);
 }
 
 =item set_client_version($client_name, $client_version)
@@ -1436,19 +878,10 @@ version $client_version.
 
 sub set_client_version {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $client_name = shift;
     my $client_version = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 69 ' . holl($client_name) . ' ' . holl($client_version) . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	return $res[0];
-    }
-
+    return $self->gen_call_boolean(69, holl($client_name), holl($client_version));
 }
 
 =item get_client_name($session)
@@ -1460,19 +893,9 @@ session number $session.
 
 sub get_client_name {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $session = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 70 ' . $session . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	shift @res;    # Remove return code
-	return $res[0];
-    }
-
+    return $self->gen_call_scalar(70, $session);
 }
 
 =item get_client_version($session)
@@ -1484,67 +907,86 @@ session number $session.
 
 sub get_client_version {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $session = shift;
-    my @res;
 
-    $self->{socket}->print($this . ' 71 ' . $session . ' ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	shift @res;    # Remove return code
-	return $res[0];
-    }
-
+    return $self->gen_call_scalar(71, $session);
 }
 
 =item get_version_info
 
-Ask the server for the version info of the server software itself.
+Ask the server for the version info of the server software itself. 
+Returns a three-element array with the protocol version, server
+software name and server software version.
 
 =cut
 
 sub get_version_info {
     my $self = shift;
-    my $this = $self->{refno}++;
     my @res;
 
-    $self->{socket}->print($this . ' 75 ');
-    @res = $self->getres;
+    @res = $self->server_call(75);
     if ($self->is_error(@res)) {
 	return ();
     } else {
 	shift @res;    # Remove return code
-	return parse_version_info(@res);
+	return @res[0..2];
     }
 }
 
-=item lookup_z_name($name, $want_pers, $want_conf)
+=item lookup_z_name(name => $name, want_pers => $wp, want_conf => $wc)
 
-Lookup the name $name in the server, returns a list of all matching conferences
-and/or persons. The server database is searched with standard kom name expansion.
+Lookup the name $name in the server, returns a list of all matching
+conferences and/or persons, in the form of L<Net::Lyskom::ConfZInfo>
+objects. The server database is searched with standard kom name
+expansion.
 
-If $want_pers is true, the server includes persons in the answer, if $want_conf
-is true, conferences is included.
+If $want_pers is true, the server includes persons in the answer, if
+$want_conf is true, conferences is included.
 
 =cut 
 
 sub lookup_z_name {
     my $self = shift;
-    my $this = $self->{refno}++;
     my @res;
-    my ($name, $want_pers, $want_conf) = @_;
-    my $tmp;
+    my %arg = @_;
 
-    $tmp = sprintf "%d 76 %s %d %d\n",$this,holl($name),($want_pers?1:0),($want_conf?1:0);
-    $self->{socket}->print($tmp);
-    @res = $self->getres;
+    @res = $self->server_call(76,
+			      holl($arg{name}),
+			      ($arg{want_pers}?1:0),
+			      ($arg{want_conf}?1:0));
     if ($self->is_error(@res)) {
 	return 0;
     } else {
 	shift @res;		# Remove return code
-	return parse_conf_z_info_array(@res);
+	return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
+    }
+}
+
+=item re_z_lookup(name => $name, want_pers => $wp, want_conf => $wc)
+
+Regexp lookup of the name $name in the server, returns a list of all
+matching conferences and/or persons, in the form of
+L<Net::Lyskom::ConfZInfo> objects.
+
+If $want_pers is true, the server includes persons in the answer, if
+$want_conf is true, conferences is included.
+
+=cut 
+
+sub re_z_lookup {
+    my $self = shift;
+    my @res;
+    my %arg = @_;
+
+    @res = $self->server_call(74,
+			      holl($arg{name}),
+			      ($arg{want_pers}?1:0),
+			      ($arg{want_conf}?1:0));
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	shift @res;		# Remove return code
+	return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
     }
 }
 
@@ -1556,173 +998,249 @@ Tells the server that the user is active.
 
 sub user_active {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my @res;
 
-    $self->{socket}->print($this . ' 82 ');
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    return $self->gen_call_boolean(82);
 }
 
-=item who_is_on_dynamic($want_visible, $want_invisible, $active_last)
+=item who_is_on_dynamic(want_visible => $wv, want_invisible => $wi, active_last => $al)
 
-Returns a list of information about sessions. If $want_visible is true, the visible users are included
-in the answer. If $want_invisible is true, invisible users are included.
+Returns a list of L<Net::Lyskom::DynamicSession> objects. If
+C<want_visible> is true, the visible users are included in the answer.
+If C<want_invisible> is true, invisible users are included.
 
-Only the users active the last $active_last seconds are included in the answer. If $active_last is 
-zero, all users (who match the visibility limits) are returned.
+Only the users active the last C<active_last> seconds are included in
+the answer. If C<active_last> is zero, all users (who match the
+visibility limits) are returned.
+
+If not given, C<want_visible> defaults to true, C<want_invisible>
+defaults to false and C<active_last> defaults to 0.
 
 =cut
 
 sub who_is_on_dynamic {
   my $self = shift;
-  my $this = $self->{refno}++;
-  my ($want_visible, $want_invisible, $active_last) = @_;
+  my %arg = @_;
   my @res;
-  my $tmp;
 
-  $tmp = sprintf "%d 83 %s %d %d\n",$this,($want_visible?1:0),($want_invisible?1:0),$active_last;
-  $self->{socket}->print($tmp);
-  @res = $self->getres;
+  $arg{want_visible} = 1 unless $arg{want_visible};
+  $arg{want_invisible} = 0 unless $arg{want_invisible};
+  $arg{active_last} = 0 unless $arg{active_last};
+
+  @res = $self->server_call(83,
+			    ($arg{want_visible}?1:0),
+			    ($arg{want_invisible}?1:0),
+			    $arg{active_last});
   if ($self->is_error(@res)) {
     return 0;
   } else {
     shift @res;		# Remove return code
-    return parse_dynamic_session_info_array(@res);
+    return parse_array_stream(sub{Net::Lyskom::DynamicSession->new_from_stream(@_)},\@res)
   }
 }
 
-=item create_text
+=item get_static_session_info($session_no)
 
-Create a text.
+Returns a C<Net::Lyskom::StaticSession> object holding details on the
+specified session.
+
+=cut
+
+sub get_static_session_info {
+    my $self = shift;
+    my $session = shift;
+    my @res;
+
+    @res = $self->server_call(84, $session);
+    if ($self->is_error(@res)) {
+	return undef;
+    } else {
+	shift @res;
+	return Net::Lyskom::StaticSession->new_from_stream(\@res);
+    }
+}
+
+
+=item create_text(subject => "This is the subject", body => "This is the text body.", recpt => [6], cc_recpt => [437], bcc_recpt => [19, 23], comm_to => [4711], footn_to => [11147], aux => [@aux_obj_list])
+
+Creates texts. Takes arguments as indicated in the synopsis just above
+(that is, as a hash with zero or more of the given keys and strings or
+arrayrefs as values, as appropriate). Any of the arguments can be left
+out, but a text without at least one recipient is not very useful (nor
+is one with neither subject nor body). The C<aux> argument should be a
+reference to a list of L<Net::Lyskom::AuxInfo> objects.
+
+Example:
+
+  $k->create_text(
+                  subject => "Test",
+                  body => "Body",
+                  recpt => [437],
+                  aux => [
+                          Net::Lyskom::AuxItem->new(
+                                                    tag => content_type,
+                                                    data => "text/plain"
+                                                   )
+                         ]);
+
 
 =cut
 
 sub create_text {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my $text = shift;
-    my @misc = @{$_[0]} if $_[0];
-    my @aux = @{$_[1]} if $_[1];
-    my (@tmp,$tmp);
-    my @res;
+    my %arg = @_;
+    my @misc;
+    my $misc_count = 0;
+    my @aux;
+    my $aux_count = 0;
+    my @call;
 
-    $tmp = "$this 86 ".holl($text)." ";
-
-    while (@misc) {
-	my ($v,$k) = splice(@misc,0,2);
-	if ($v eq "to") {
-	    push @tmp, "0 $k";
-	} elsif ($v eq "cc") {
-	    push @tmp, "1 $k";
-	} elsif ($v eq "bcc") {
-	    push @tmp, "15 $k";
-	} elsif ($v eq "comment_to") {
-	    push @tmp, "2 $k";
-	} elsif ($v eq "footnote_to") {
-	    push @tmp, "4 $k";
+    push @call, holl($arg{subject}."\n".$arg{body});
+    if ($arg{recpt}) {
+	foreach (@{$arg{recpt}}) {
+	    push @misc, 0, $_;
+	    $misc_count++;
 	}
     }
-    if (@tmp>0) {
-	$tmp .= @tmp;
-	$tmp .= " { @tmp } ";
-    } else {
-	$tmp .= " 0 { } ";
+    if ($arg{cc_recpt}) {
+	foreach (@{$arg{cc_recpt}}) {
+	    push @misc, 1, $_;
+	    $misc_count++;
+	}
     }
-    @tmp = ();
+    if ($arg{bcc_recpt}) {
+	foreach (@{$arg{bcc_recpt}}) {
+	    push @misc, 15, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{comm_to}) {
+	foreach (@{$arg{comm_to}}) {
+	    push @misc, 2, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{footn_to}) {
+	foreach (@{$arg{footn_to}}) {
+	    push @misc, 4, $_;
+	    $misc_count++;
+	}
+    }
+    push @call, $misc_count, '{', @misc, '}';
 
-    while (@aux) {
-	my ($tag,$flags,$limit,$data) = splice(@aux,0,4);
-	push @tmp, "$tag $flags $limit ".holl($data);
-	
+    if ($arg{aux}) {
+	foreach (@{$arg{aux}}) {
+	    push @aux, $_->to_server;
+	    $aux_count++;
+	}
     }
-    if (@tmp>0) {
-	$tmp .= @tmp;
-	$tmp .= " { @tmp } ";
-    } else {
-	$tmp .= "0 { } ";
-    }
+    push @call, $aux_count, '{', @aux, '}';
 
-    $tmp .= "\n";
-
-    $self->{socket}->print($tmp);
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return ();
-    } else {
-	shift @res;		# Remove return code
-	return $res[0];
-    }
+    return $self->gen_call_scalar(86, @call);
 }
 
 =item get_text_stat($textno)
 
-Fetch the status for a text from the server.
+Fetch the status for a text from the server. Returns a
+L<Net::Lyskom::TextStat> object.
 
 =cut
 
 sub get_text_stat {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $textno = shift;
     my @res;
 
-    $self->{socket}->print("$this 90 $textno\n");
-    @res = $self->getres;
+    @res = $self->server_call(90, $textno);
     if ($self->is_error(@res)) {
 	return 0;
     } else {
 	shift @res;		# Remove return code
-	return (parse_text_stat(@res))[0];
+	return Net::Lyskom::TextStat->new_from_stream($self, $textno, \@res);
     }
 }
 
 =item get_conf_stat($conf_no)
 
-Get status for a conference from the server.
+Get status for a conference from the server. Returns a
+L<Net::Lyskom::Conference> object.
 
 =cut
 
 sub get_conf_stat {
     my $self = shift;
-    my $this = $self->{refno}++;
     my $confno = shift;
     my @res;
 
-    $self->{socket}->print("$this 91 $confno\n");
-    @res = $self->getres;
+    @res = $self->server_call(91, $confno);
     if ($self->is_error(@res)) {
 	return 0;
     } else {
 	shift @res;		# Remove return code
-	return (parse_conf_stat(@res))[0];
+	return Net::Lyskom::Conference->new_from_stream(\@res);
     }
+}
+
+=item modify_text_info( text => $text, delete => $delete_array_ref, add => $add_array_ref)
+
+Add and/or delete aux items to/from a text. C<delete> should be a
+reference to an array of aux_info order numbers to remove from the
+text. C<add> should be a reference to an array of
+C<Net::Lyskom::AuxInfo> objects to add to the text.
+
+=cut
+
+sub modify_text_info {
+    my $self = shift;
+    my %arg = @_;
+    my @aux;
+    my $aux_count = 0;
+    my @del;
+    my $del_count = 0;
+    my @call;
+
+    push @call, 92;
+    push @call, $arg{text};
+
+    if ($arg{delete}) {
+	foreach (@{$arg{delete}}) {
+	    push @del, $_;
+	    $del_count++;
+	}
+    }
+    push @call, $del_count, '{', @del, '}';
+
+    if ($arg{add}) {
+	foreach (@{$arg{add}}) {
+	    push @aux, $_->to_server;
+	    $aux_count++;
+	}
+    }
+    push @call, $aux_count, '{', @aux, '}';
+
+    return $self->gen_call_boolean(@call);
 }
 
 =item butt_ugly_fast_reply($text, $data)
 
-Adds a fast-reply auxitem with the contents $data to the text $text.
+Adds a fast-reply auxitem with the contents $data to the text $text. 
+Now implemented in terms of C<modify_text_info>, name retained for
+backwards compatibility.
 
 =cut
 
-sub butt_ugly_fast_reply {
+sub butt_ugly_fast_reply {	# Less ugly re-implementation
     my $self = shift;
-    my $this = $self->{refno}++;
     my ($text, $data) = @_;
-    my @res;
 
-    $self->{socket}->print("$this 92 $text 0 { } 1 { 2 00000000 0 " .
-                       holl($data) . "}\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
+    $self->modify_text_info(
+			    text => $text,
+			    add => [
+				    Net::Lyskom::AuxItem->new(
+							      tag => "fast_reply",
+							      data => $data
+							     )
+				   ]
+			   );
 }
 
 =item query_predefined_aux_items 
@@ -1733,69 +1251,652 @@ Ask the server which predefined aux items that exists in the server.
 
 sub query_predefined_aux_items {
     my $self = shift;
-    my $this = $self->{refno}++;
     my @res;
 
-    $self->{socket}->print($self . ' 96 ');
-    @res = $self->getres;
+    @res = $self->server_call(96);
     if ($self->is_error(@res)) {
 	return ();
     } else {
 	shift @res;
-	(@res, undef) = parse_array(@res);
-	return @res;
+	return parse_array_stream(sub{shift @{$_[0]}},\@res);
     }
 }
 
-=item get_membership($person, $first, $no_of_confs, $want_read_texts)
+=item get_membership(person => $p, first => $f, no_of_confs => $no, want_read_texts => $w)
 
-Get a membership list for the person $person. Start at position $first in
-the membership list and get $no_of_confs conferences. If $want_read_texts is
-true the server will also send information about read texts in the
-conference.
+Get a membership list for C<person>, in the form of a list of
+L<Net::Lyskom::Membership> objects. Start at position C<first> in the
+membership list and get C<no_of_confs> conferences. If
+C<want_read_texts> is true the server will also send information about
+read texts in the conference.
 
 =cut
 
 sub get_membership {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my $person = shift;
-    my $first = shift;
-    my $no_of_confs = shift;
-    my $want_read_texts = shift;
-    my $tmp;
+    my %arg = @_;
     my @res;
 
-    $tmp = join (" ", $this, 99, $person, $first, $no_of_confs, ($want_read_texts)?1:0 );
-    debug($tmp);
+    $arg{first} = 0 unless $arg{first};
+    $arg{no_of_confs} = 10 unless $arg{no_of_confs};
+    $arg{want_read_texts} = 1 unless $arg{want_read_texts};
 
-    $self->{socket}->print("$tmp\n");
-    @res = $self->getres;
+    @res = $self->server_call(99,
+			      $arg{person},
+			      $arg{first},
+			      $arg{no_of_confs},
+			      ($arg{want_read_texts})?1:0);
     if ($self->is_error(@res)) {
 	return ();
     } else {
 	shift @res;    # Remove return code
-	return parse_membership_array(@res);
+	return parse_array_stream(sub{Net::Lyskom::Membership->new_from_stream(@_)},\@res);
     }
 }
 
-=item local_to_global($conf, $first, $no)
+=item local_to_global(conf => $conf, first => $first, number => $no)
+
+Given a local text number and an integer smaller than 256, returns a
+L<Net::Lyskom::TextMapping> object detailing the mapping between the
+local and global text numbers of up to that many texts. All arguments
+are required.
 
 =cut
 
 sub local_to_global {
     my $self = shift;
-    my $this = $self->{refno}++;
-    my ($conf, $first, $no) = @_;
+    my %arg = @_;
     my @res;
 
-    $self->{socket}->print("$this 103 $conf $first $no\n");
-    @res = $self->getres;
+    @res = $self->server_call(103, $arg{conf}, $arg{first}, $arg{number});
     if ($self->is_error(@res)) {
 	return ();
     } else {
 	shift @res;		# Remove return code
-	return parse_text_mapping(@res);
+	return Net::Lyskom::TextMapping->new_from_stream(\@res);
+    }
+}
+
+=item map_created_texts(pers_no => $pers, first => $first, number => $no)
+
+Given a local text number and an integer smaller than 256, returns a
+L<Net::Lyskom::TextMapping> object detailing the mapping between texts
+written by C<pers_no> and global text numbers of up to that many
+texts. All arguments are required.
+
+=cut
+
+sub map_created_texts {
+    my $self = shift;
+    my %arg = @_;
+    my @res;
+
+    @res = $self->server_call(104, $arg{pers_no}, $arg{first}, $arg{number});
+    if ($self->is_error(@res)) {
+	return ();
+    } else {
+	shift @res;		# Remove return code
+	return Net::Lyskom::TextMapping->new_from_stream(\@res);
+    }
+}
+
+=item set_membership_type(pers => $p, conf => $c, invitation => $i, passive => $pa, secret => $s)
+
+Set the membership flags for user C<pers> in conference C<conf>.
+
+=cut
+
+sub set_membership_type {
+    my $self = shift;
+    my %arg = @_;
+    my $str = sprintf "%s%s%s00000",
+      ($arg{invitation}?"1":"0"),
+	($arg{passive}?"1":"0"),
+	  ($arg{secret}?"1":"0");
+
+    return $self->gen_call_boolean(102, $arg{pers}, $arg{conf}, $str);
+}
+
+=item get_members(conf => $conf_no, first => $first_index, $count => $no_of_members)
+
+=cut
+
+sub get_members {
+    my $self = shift;
+    my %arg = @_;
+    my @res;
+
+    @res = $self->server_call(101, $arg{conf}, $arg{first}, $arg{count});
+    if ($self->is_error(@res)) {
+	return undef
+    } else {
+	shift @res;
+	return parse_array_stream(sub{Net::Lyskom::Member->new_from_stream(@_)}, \@res)
+    }
+}
+
+=item add_member(conf => $conf, pers => $pers_no, priority => $prio, where => $where, invitation => $invite, passive => $pass, secret => $secret)
+
+Add person number C<pers> as a member of conference number C<conf>, at
+priority C<priority> and at position C<where>. C<invitation>,
+C<passive> and C<secret> specify the membership type.
+
+=cut
+
+sub add_member {
+    my $self = shift;
+    my %arg = @_;
+
+    my $type = sprintf "%s%s%s00000",
+      ($arg{invitation}?"1":"0"),
+	($arg{passive}?"1":"0"),
+	  ($arg{secret}?"1":"0");
+    return $self->gen_call_boolean(100, $arg{conf}, $arg{pers},
+				   $arg{priority}, $arg{where}, $type);
+}
+
+=item query_read_texts($pers, $conf)
+
+Return information on which texts person $pers has read in conference
+$conf. Returns an C<Net::Lyskom::Membership> object.
+
+=cut
+
+sub query_read_texts {
+    my $self = shift;
+    my ($pers, $conf) = @_;
+
+    my @res = $self->server_call(98,$pers,$conf);
+    if ($self->is_error(@res)) {
+	return undef
+    } else {
+	shift @res;
+	return Net::Lyskom::Membership->new_from_stream(\@res)
+    }
+}
+
+=item set_expire($conf, $expire)
+
+Set the garb-nice value for conference C<$conf> to C<$expire>.
+
+=cut
+
+sub set_expire {
+    my $self = shift;
+    my ($conf, $expire) = @_;
+
+    return $self->gen_call_boolean(97, $conf, $expire);
+}
+
+=item mark_text($text, $mark)
+
+Sets a mark of (numerical) type C<$type> on text number C<$text>.
+
+=cut
+
+sub mark_text {
+    my $self = shift;
+    my ($text, $mark) = @_;
+
+    return $self->gen_call_boolean(72, $text, $mark);
+}
+
+=item get_marks
+
+Returns an array of (text_no, mark_type) pairs, showing the texts the
+current user has marked.
+
+=cut
+
+sub get_marks {
+    my $self = shift;
+
+    my @res = $self->server_call(23);
+    if ($self->is_error(@res)) {
+	return undef;
+    } else {
+	shift @res;
+	return parse_array_stream(sub{[splice @{$_[0]},0,2]},\@res);
+    }
+}
+
+=item unmark_text($text)
+
+Remove any marks on the specified text.
+
+=cut
+
+sub unmark_text {
+    my $self = shift;
+    my $text = shift;
+
+    return $self->gen_call_boolean(73, $text);
+}
+
+=item set_last_read($conf,$local_no)
+
+Tell the server that the current user has read everything up to local
+number C<$local_no> in conference number C<$conf>.
+
+=cut
+
+sub set_last_read {
+    my $self = shift;
+    my ($conf, $local_no) = @_;
+
+    return $self->gen_call_boolean(77, $conf, $local_no)
+}
+
+=item set_conf_type(conf => $conf, rd_prot => $rp, original => $orig, secret => $sec, letterbox => $letter, allow_anonymous => $anon, forbid_secret => $nosecret)
+
+Set the type of conference C<conf>. C<conf> is required, the rest
+default to false if not specified.
+
+=cut
+
+sub set_conf_type {
+    my $self = shift;
+    my %arg = @_;
+
+    die unless exists($arg{conf});
+    $arg{rd_prot}         = 0 unless $arg{rd_prot};
+    $arg{original}        = 0 unless $arg{original};
+    $arg{secret}          = 0 unless $arg{secret};
+    $arg{letterbox}       = 0 unless $arg{letterbox};
+    $arg{allow_anonymous} = 0 unless $arg{allow_anonymous};
+    $arg{forbid_secret}   = 0 unless $arg{forbid_secret};
+
+    my $type = sprintf "%s%s%s%s%s%s000",
+      ($arg{rd_prot}?"1":"0"),
+	($arg{original}?"1":"0"),
+	  ($arg{secret}?"1":"0"),
+	    ($arg{letterbox}?"1":"0"),
+	      ($arg{allow_anonymous}?"1":"0"),
+		($arg{forbid_secret}?"1":"0");
+    return $self->gen_call_boolean(21, $arg{conf}, $type);
+
+}
+
+=item mark_as_read($conf, @texts)
+
+Marks the texts specified by the local text numbers in C<@texts> as
+read in the conference C<$conf>.
+
+=cut
+
+sub mark_as_read {
+    my $self = shift;
+    my $conf = shift;
+    my @texts = @_;
+
+    return $self->gen_call_boolean(27, $conf, scalar @texts, '{', @texts, '}');
+}
+
+=item sub_comment($text, $comment)
+
+Removes C<$text> from C<$comment>s list of comments.
+
+=cut
+
+sub sub_comment {
+    my $self = shift;
+    my ($text, $comment) = @_;
+
+    return $self->gen_call_boolean(33, $text, $comment);
+}
+
+=item add_footnote($text, $footnote_to)
+
+Makes text number C<$text> be a footnote to text number C<$footnote_to>.
+
+=cut
+
+sub add_footnote {
+    my $self = shift;
+    my ($text, $footnote_to) = @_;
+
+    return $self->gen_call_boolean(37, $text, $footnote_to);
+}
+
+=item sub_footnote($text, $footnote_to)
+
+Makes text number C<$text> not be a footnote to text number C<$footnote_to>.
+
+=cut
+
+sub sub_footnote {
+    my $self = shift;
+    my ($text, $footnote_to) = @_;
+
+    return $self->gen_call_boolean(38, $text, $footnote_to);
+}
+
+=item disconnect($session)
+
+Make session number C<$session> lose its connection with the server,
+given sufficient privilege. Session zero is always interpreted as the
+current session.
+
+=cut
+
+sub disconnect {
+    my $self = shift;
+    my $session = shift;
+
+    return $self->gen_call_boolean(55, $session);
+}
+
+=item set_user_area($pers_no, $text_no)
+
+Make text number C<$text_no> be the user area for user number C<$pers_no>.
+
+=cut
+
+sub set_user_area {
+    my $self = shift;
+    my ($pers, $text) = @_;
+
+    return $self->gen_call_boolean(57, $pers, $text);
+}
+
+=item get_uconf_stat($conf)
+
+Get a subset of all information for conference number C<$conf>. 
+Returns a L<Net::Lyskom::Conference> object with only some fields
+filled.
+
+=cut
+
+sub get_uconf_stat {
+    my $self = shift;
+    my $conf = shift;
+
+    my @res = $self->server_call(78, $conf);
+    if ($self->is_error(@res)) {
+	return undef;
+    } else {
+	return Net::Lyskom::Conference->new_from_ustream(\@res);
+    }
+}
+
+=item set_info(conf_pres_conf => $cpc, pers_pres_conf => $ppc, motd_conf => $mc, kom_news_conf => $knc, motd_of_lyskom => $mol)
+
+Sets server information.
+
+=cut
+
+sub set_info {
+    my $self = shift;
+    my %arg = @_;
+
+    $arg{conf_pres_conf} = 0 unless $arg{conf_pres_conf};
+    $arg{pers_pres_conf} = 0 unless $arg{pers_pres_conf};
+    $arg{motd_conf} = 0 unless $arg{motd_conf};
+    $arg{kom_news_conf} = 0 unless $arg{kom_news_conf};
+    $arg{motd_of_lyskom} = 0 unless $arg{motd_of_lyskom};
+
+    return $self->gen_call_boolean(79, 0, # The zero must be there, see prot-a
+				   $arg{conf_pres_conf},
+				   $arg{pers_pres_conf},
+				   $arg{motd_conf},
+				   $arg{kom_news_conf},
+				   $arg{motd_of_lyskom}
+				  );
+}
+
+=item accept_async(@call_numbers)
+
+Tell the server to send the asynchronous calls with the numbers
+specified in C<@call_numbers>.
+
+=cut
+
+sub accept_async {
+    my $self = shift;
+
+    return $self->gen_call_boolean(80, scalar @_, '{', @_, '}');
+}
+
+=item query_async
+
+Ask server which asynchronous calls are turned on for this session. 
+Returns a list of integers.
+
+=cut
+
+sub query_async {
+    my $self = shift;
+
+    my @res = $self->server_call(81);
+    if ($self->is_error(@res)) {
+	return undef
+    } else {
+	return parse_array_stream(sub{shift @{$_[0]}},\@res);
+    }
+}
+
+=item get_collate_table
+
+Get the active collate table from the server.
+
+=cut
+
+sub get_collate_table {
+    my $self = shift;
+
+    return $self->gen_call_scalar(85);
+}
+
+=item create_anonymous_text(...arguments...)
+
+Exactly the same as C<create_text>, except that it uses the call to
+create the text anonymously.
+
+=cut
+
+sub create_anonymous_text {
+    my $self = shift;
+    my %arg = @_;
+    my @misc;
+    my $misc_count = 0;
+    my @aux;
+    my $aux_count = 0;
+    my @call;
+
+    push @call, holl($arg{subject}."\n".$arg{body});
+    if ($arg{recpt}) {
+	foreach (@{$arg{recpt}}) {
+	    push @misc, 0, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{cc_recpt}) {
+	foreach (@{$arg{cc_recpt}}) {
+	    push @misc, 1, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{bcc_recpt}) {
+	foreach (@{$arg{bcc_recpt}}) {
+	    push @misc, 15, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{comm_to}) {
+	foreach (@{$arg{comm_to}}) {
+	    push @misc, 2, $_;
+	    $misc_count++;
+	}
+    }
+    if ($arg{footn_to}) {
+	foreach (@{$arg{footn_to}}) {
+	    push @misc, 4, $_;
+	    $misc_count++;
+	}
+    }
+    push @call, $misc_count, '{', @misc, '}';
+
+    if ($arg{aux}) {
+	foreach (@{$arg{aux}}) {
+	    push @aux, $_->to_server;
+	    $aux_count++;
+	}
+    }
+    push @call, $aux_count, '{', @aux, '}';
+
+    return $self->gen_call_scalar(87, @call);
+}
+
+=item create_conf(name => $name, rd_prot => $rp, original => $orig, secret => $sec, letterbox => $letter, allow_anonymous => $anon, forbid_secret => $nosecret, aux => $aux_array_ref)
+
+Create a conference.
+
+=cut
+
+sub create_conf {
+    my $self = shift;
+    my %arg = @_;
+
+    croak "Tried to create conference with no name" unless $arg{name};
+    $arg{rd_prot}         = 0 unless $arg{rd_prot};
+    $arg{original}        = 0 unless $arg{original};
+    $arg{secret}          = 0 unless $arg{secret};
+    $arg{letterbox}       = 0 unless $arg{letterbox};
+    $arg{allow_anonymous} = 0 unless $arg{allow_anonymous};
+    $arg{forbid_secret}   = 0 unless $arg{forbid_secret};
+    $arg{aux} = [] unless $arg{aux};
+
+    my $type = sprintf "%s%s%s%s%s%s000",
+      ($arg{rd_prot}?"1":"0"),
+	($arg{original}?"1":"0"),
+	  ($arg{secret}?"1":"0"),
+	    ($arg{letterbox}?"1":"0"),
+	      ($arg{allow_anonymous}?"1":"0"),
+		($arg{forbid_secret}?"1":"0");
+
+    return $self->gen_call_scalar(88,
+				  $arg{name},
+				  $type,
+				  scalar @{$arg{aux}},
+				  '{',
+				  map {$_->to_server} @{$arg{aux}},
+				  '}'
+				 );
+}
+
+=item create_person(name => $name, password => $pwd, unread_is_secret => $uis, aux => $aux_array_ref)
+
+Create a person.
+
+=cut
+
+sub create_person {
+    my $self = shift;
+    my %arg = @_;
+
+    croak "Tried to create person without name" unless $arg{name};
+    croak "Tried to create person without password" unless $arg{password};
+    $arg{unread_is_secret} = 0 unless $arg{unread_is_secret};
+    my $type = sprintf "%s0000000", ($arg{unread_is_secret}?"1":"0");
+
+    return $self->gen_call_scalar(89, $arg{name}, $arg{password}, $type,
+				  scalar @{$arg{aux}},
+				  '{',
+				  map {$_->to_server} @{$arg{aux}},
+				  '}'
+				 );
+}
+
+=item modify_conf_info(conf => $conf, delete => $del_array_ref, add => $add_array_ref)
+
+Delete and/or add aux items to a conference. C<$del_array_ref> is a
+reference to an array of aux item numbers to delete. C<$add_array_ref>
+is a reference to an array of aux items to add.
+
+=cut
+
+sub modify_conf_info {
+    my $self = shift;
+    my %arg = @_;
+
+    $arg{delete} = [] unless $arg{delete};
+    $arg{add} = [] unless $arg{add};
+
+    return undef unless $arg{conf};
+    return $self->gen_call_boolean(93, $arg{conf},
+				   scalar @{$arg{delete}},
+				   '{',@{$arg{delete}},'}',
+				   scalar @{$arg{add}},
+				   '{', map {$_->to_server} @{arg{add}},'}'
+				   );
+}
+
+=item modify_system_info(delete => $del_array_ref, add => $add_array_ref)
+
+Add and/or delete aux items for the server itself. Similar arguments
+as above.
+
+=cut
+
+sub modify_system_info {
+    my $self = shift;
+    my %arg = @_;
+
+    $arg{delete} = [] unless $arg{delete};
+    $arg{add} = [] unless $arg{add};
+
+    return $self->gen_call_boolean(95,
+				   scalar @{$arg{delete}},
+				   '{',@{$arg{delete}},'}',
+				   scalar @{$arg{add}},
+				   '{', map {$_->to_server} @{arg{add}},'}'
+				   );
+
+}
+
+=item set_keep_commented($conf, $keep)
+
+Set the C<keep_commented> field for conference number C<$conf> to C<$keep>.
+
+=cut
+
+sub set_keep_commented {
+    my $self = shift;
+    my ($conf, $keep) = @_;
+
+    return $self->gen_call_boolean(105, $conf, $keep);
+}
+
+=item set_pers_flags(person => $pers, unread_is_secret => $uis)
+
+Set the personal flags for person number C<person>. At the moment
+there is only one such flag, but this method uses the many-args
+calling convention for ease of future expansion.
+
+=cut
+
+sub set_pers_flags {
+    my $self = shift;
+    my %arg = @_;
+    my $type = sprintf "%s0000000", ($arg{unread_is_secret}?"1":"0");
+
+    return $self->gen_call_boolean(106, $arg{person}, $type);
+}
+
+=item get_info
+
+Get the server info. Returns a C<Net::Lyskom::Info> object.
+
+=cut
+
+sub get_info {
+    my $self = shift;
+
+    my @res = $self->server_call(94);
+    if ($self->is_error(@res)) {
+	return undef;
+    } else {
+	return Net::Lyskom::Info->new_from_stream(\@res);
     }
 }
 
@@ -1818,5 +1919,6 @@ __END__
 
 =head1 SEE ALSO
 
-perl(1).
-
+L<Net::Lyskom::AuxItem>, L<Net::Lyskom::ConfZInfo>, L<Net::Lyskom::Conference>,
+L<Net::Lyskom::Membership>, L<Net::Lyskom::Object>, L<Net::Lyskom::Person>,
+L<Net::Lyskom::TextMapping>, L<Net::Lyskom::Time>, L<Net::Lyskom::Util>

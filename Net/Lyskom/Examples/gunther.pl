@@ -1,118 +1,168 @@
 #!/usr/bin/perl -w
 
-# Very ugly example of use of the module. This program generates
-# statistics of the subject lines used in a certain conference over
-# the last week, and posts the result to that conference. Lots of
-# hardcoded things and bugger-all documentation. Good luck!
-
 use Net::Lyskom;
 
-$a = Net::Lyskom->new() or die "Failed to connect to server.\n";
-$conf = 6;			# Hardcoded conference number...
-$starttime = time-(3600*24*7);	# Hardcoded time...
+# Globals
 
-$text = $a->get_last_text($starttime);
+our $kom = Net::Lyskom->new;	# Connect to Lysator by default
+our $komuser = "Günther";
+our $kompass = "password";
+our $confname = "Inlägg }t mig";
+our $confno;
+our $starttime = time() - (3600*24*7); # One week in seconds
 
-$found = 0;
+# Let's login
 
-@raw = ();
-%subj = ();
+sub do_login {
+    my @tmp = $kom->lookup_z_name(name => $komuser,
+				  want_pers => 1,
+				  want_conf => 0);
 
-$a->login(8563,"goblin",1)
-  or die "Failed to log in: $a->{err_string}\n";
+    die "Ambiguous username, aborting.\n" if @tmp > 1;
+    die "Username does not exist, aborting.\n" if @tmp == 0;
 
-sub count_comments {
-    my $s = shift;
-    my $res = 0;
-
-    foreach (@{$s->{misc_info}}) {
-	$res++ if $_->{type} == 3;
-    }
-    return $res;
+    $kom->login(pers_no => $tmp[0]->conf_no, password => $kompass)
+      or die "Login failed: $kom->{err_string}\n";
 }
 
-sub process_text {
+# Lookup our conference
+
+sub lookup_conf {
+    my @tmp = $kom->lookup_z_name(name => $confname,
+				  want_pers => 0,
+				  want_conf => 1);
+
+    die "Ambiguous conference name, aborting.\n" if @tmp > 1;
+    die "Conference does not exist, aborting.\n" if @tmp == 0;
+    $confno = $tmp[0]->conf_no;
+}
+
+# Find first text sent to our conference
+
+sub is_in_conf {		# Is this text in our conference?
     my $t = shift;
-    my $s = $a->get_text_stat($t);
-    my $c = $a->get_text($t,0,100);
+    my $s = $kom->get_text_stat($t);
+    return undef unless $s;
 
-    $raw[$t]{author} = $s->{author};
-    $raw[$t]{ncomments} = count_comments($s);
-    $raw[$t]{no} = $t;
-    $c =~ s/^([^\n]+).*$/$1/ms;
-    $subj{$c}{count}++;
-    $subj{$c}{ncomments} += $raw[$t]{ncomments};
+    foreach ($s->misc_info) {
+	if ($_->type =~ /recpt/ && $_->data == $confno) {
+	    return 1;		# Return success
+	}
+    }
+    return undef;		# Return failure
 }
+
+sub find_first {
+    my $text = $kom->get_last_text($starttime);
+
+    until (is_in_conf($text)) {
+	$text = $kom->find_next_text_no($text)
+    };
+    return $text;
+}
+
+# And which local text number is that?
+
+sub global_to_local {
+    my $global = shift;
+
+    foreach ($kom->get_text_stat($global)->misc_info) {
+	next unless $_->type =~ /recpt/ && $_->data == $confno;
+	return $_->loc_no;
+    }
+    return undef;		# Not possible to get here
+}
+
+# Get the global numbers of all texts we're interested in
+
+sub all_global {
+    my $local = shift;
+    my @all;
+    my $map;
+
+    do {
+	$map = $kom->local_to_global(conf => $confno,
+				     first => $local,
+				     number => 255);
+	push @all, $map->global_text_numbers;
+	$local = $map->range_end;
+    } while ($map->later_texts_exist);
+
+    return @all;
+}
+
+# And now for the real work
+
+sub get_subject {
+    my $no = shift;
+    my $text = $kom->get_text(text => $no, start_char => 0, end_char => 100);
+    $text =~ s/\n.*$//s;	# Remove everything from the first linefeed
+    return $text;
+}
+
+sub make_statistics {
+    my %subject;
+
+    foreach my $textno (@_) {
+	my $subj = get_subject($textno);
+	my $stat = $kom->get_text_stat($textno);
+	
+	$subject{$subj}{count} += 1;
+	$subject{$subj}{lines} += $stat->no_of_lines;
+	$subject{$subj}{chars} += $stat->no_of_chars;
+    }
+    return %subject;
+}
+
+# Format the result
 
 sub time2str {
-    my $time = shift;
+    my $t = shift;
 
-    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
-      localtime($time);
+    my ($sec,$min,$hour,$mday,$mon) = localtime($t);
     return sprintf "%d/%d %d:%02d:%02d",$mday,$mon+1,$hour,$min,$sec;
 }
 
-until ($found) {
-    $stat = $a->get_text_stat($text);
-    foreach (@{$stat->{misc_info}}) {
-	if ($_->{type} == 0 and $_->{data} == $conf) {
-	    $found = $text;
-	}
+sub format_statistics {
+    my %stats = @_;
+    my @lines = sort {$stats{$b}{count} <=> $stats{$a}{count}} keys %stats;
+    splice @lines, 25 if @lines > 25; # Truncate to 25 subject lines
+    my $res;
+
+    $res .= "Antal:    Antal inlägg med en viss ärenderad.\n";
+    $res .= "Avg. t/i: Genomsnittligt antal tecken per inlägg.\n";
+    $res .= "Ang. r/i: Genomsnittligt antal rader per inlägg.\n\n";
+    $res .= "Inlägg skrivna mellan ".time2str($starttime)." och ".time2str(time)." har räknats.\n\n";
+    $res .= "Endast de 25 mest förekommande ärenderaderna visas.\n\n";
+    $res .= "Antal Avg. t/i Avg. r/i  Ärende\n";
+    $res .= "===== ======== ========  =============================================\n";
+    foreach my $l (@lines)
+    {
+	$res .= sprintf "%5d %8.1f %8.2f  %.45s\n",
+	  $stats{$l}{count},
+	    $stats{$l}{chars}/$stats{$l}{count},
+	      $stats{$l}{lines}/$stats{$l}{count},
+		$l;
     }
-    $text = $a->find_next_text_no($text);
+    $res .= "\n";
+
+    return $res;
 }
 
-@tmp = @{$stat->{misc_info}};
-until (
-       $tmp[0]{type} == 0 or
-       $tmp[0]{type} == 1 or
-       $tmp[0]{type} == 15 and
-       $tmp[0]{data} == $conf
-      ) {
-    shift @tmp;
-}
-until ($tmp[0]{type} == 6) {
-    shift @tmp;
-}
-$local_no = $tmp[0]{data};
+# Send string as a text to Lyskom
 
-$res = $a->local_to_global($conf,$local_no,255);
+sub commit {
+    my $body = shift;
 
-if (!$res) {
-    print "$a->{err_string}\n";
-    exit 0;
+    $kom->create_text(
+		      subject => "Veckans ärenderadsstatistik",
+		      body => $body,
+		      recpt => [$confno]
+		     );
 }
 
-while($res->{later_exists}) {
-    $t = $res->{range_begin};
-    process_text($res->{local}[$t++]) while $res->{local}[$t];
-    $res = $a->local_to_global($conf,$res->{range_end},255);
-} 
-$t = $res->{range_begin};
-process_text($res->{local}[$t++]) while $res->{local}[$t];
+# String the lot together
 
-$starttime = time2str($starttime);
-$endtime = time2str(time);
-
-my $out =<<EOF;
-Veckans statistik
-
-Antal:   Antal inlägg med en viss ärenderad.
-Avg k/i: Genomsnittligt antal kommentarer per inlägg
-Ärende:  De första 55 tecknen i ärendet i fråga
-
-Inlägg skrivna mellan $starttime och $endtime har räknats. 
-Endast de 25 oftast förekommande ärenderaderna visas!
-
-Antal Avg k/i  Ärende
-===== =======  ======
-EOF
-
-
-foreach ((sort {$b->[1] <=> $a->[1]} map {[$_,$subj{$_}{count},$subj{$_}{ncomments}]} keys %subj)[0..24]) {
-    next unless $_;
-    $out .= sprintf "%5d   %5.3f  %-55s  \n",$_->[1],($_->[2]/$_->[1]),substr($_->[0],0,55);
-}
-
-$a->create_text($out,[to => $conf]);
-
+do_login;
+lookup_conf;
+commit format_statistics make_statistics all_global global_to_local find_first;

@@ -1,7 +1,10 @@
 package Net::Lyskom::AuxItem;
+use base qw{Net::Lyskom::Object};
 
 use strict;
 use warnings;
+use Carp;
+use Net::Lyskom::Util qw{:all};
 
 =head1 NAME
 
@@ -132,6 +135,33 @@ sub new {
     return $self;
 }
 
+sub new_from_stream {
+    my $s = {};
+    my $class = shift;
+    my $arg = $_[0];
+
+    $class = ref($class) if ref($class);
+    bless $s,$class;
+
+    $s->{aux_no}        = shift @{$arg};
+    $s->{tag}           = shift @{$arg};
+    $s->{creator}       = shift @{$arg};
+    $s->{created_at}    = Net::Lyskom::Time->new_from_stream($arg);
+    my $flags           = shift @{$arg}; 
+    $s->{inherit_limit} = shift @{$arg};
+    $s->{data}          = shift @{$arg};
+
+    my($deleted, $inherit, $secret, $hide_creator, $dont_garb)
+      = $flags =~ m/./g;
+    $s->dont_garb($dont_garb);
+    $s->hide_creator($hide_creator);
+    $s->secret($secret);
+    $s->inherit($inherit);
+    $s->deleted($deleted);
+
+    return $s;
+}
+
 =item data([$data])
 
 Get or set the data attribute of the AuxItem.
@@ -169,7 +199,7 @@ sub tag {
     my $self = shift;
 
     return $self->{tag} unless defined $_[0];
-    die "Unknown AuxItem tag: $_[0]" unless $type{$_[0]};
+    croak "Unknown AuxItem tag: $_[0]" unless $type{$_[0]};
     $self->{tag} = $type{$_[0]};
     return $self->{tag};
 }
@@ -183,7 +213,7 @@ Get or set the deleted flag of the AuxItem.
 sub deleted {
     my $self = shift;
 
-    $self->{deleted} = $_[0] if defined $_[0];
+    $self->{deleted} = ($_[0])?1:0 if defined $_[0];
     return $self->{deleted}
 }
 
@@ -196,7 +226,7 @@ Get or set the inherit flag of the AuxItem.
 sub inherit {
     my $self = shift;
 
-    $self->{inherit} = $_[0] if defined $_[0];
+    $self->{inherit} = ($_[0])?1:0 if defined $_[0];
     return $self->{inherit}
 }
 
@@ -209,7 +239,7 @@ Get or set the secret flag of the AuxItem.
 sub secret {
     my $self = shift;
 
-    $self->{secret} = $_[0] if defined $_[0];
+    $self->{secret} = ($_[0])?1:0 if defined $_[0];
     return $self->{secret}
 }
 
@@ -222,7 +252,7 @@ Get or set the hide_creator of the AuxItem.
 sub hide_creator {
     my $self = shift;
 
-    $self->{hide_creator} = $_[0] if defined $_[0];
+    $self->{hide_creator} = ($_[0])?1:0 if defined $_[0];
     return $self->{hide_creator}
 }
 
@@ -235,7 +265,7 @@ Get or set the dont_garb attribute of the AuxItem.
 sub dont_garb {
     my $self = shift;
 
-    $self->{dont_garb} = $_[0] if defined $_[0];
+    $self->{dont_garb} = ($_[0])?1:0 if defined $_[0];
     return $self->{dont_garb}
 }
 
@@ -267,7 +297,8 @@ sub creator {
 
 =item created_at()
 
-Get the created_at attribute of the AuxItem.
+Get the created_at attribute of the AuxItem. Returns a
+C<Net::Lyskom::Time> object.
 
 =cut
 
@@ -276,6 +307,29 @@ sub created_at {
 
     warn "Attempt to set AuxItem created_at after creation!" if $_[0];
     return $self->{created_at}
+}
+
+=item as_string()
+
+Return the object contents as a string.
+
+=cut
+
+sub as_string {
+    my $s = shift;
+    my $res = "AuxItem -> { ";
+
+    foreach (keys %{$s}) {
+	$res .= sprintf "%s => ",$_;
+	if (ref $s->{$_}) {
+	    $res .= $s->{$_}->as_string;
+	    $res .= ", ";
+	} else {
+	    $res .= sprintf "%s, ",$s->{$_};
+	}
+    }
+    $res .= " }";
+    return $res;
 }
 
 =item to_server()
@@ -291,16 +345,17 @@ sub to_server {
     my @res;
 
     $res[0] = $self->tag;
-    $res[2] = $self->inherit_limit;
-    $res[3] = $self->data;
-    $res[1] = sprintf("000%s%s%s%s%s",
-		      $self->dont_garb?"1":"0",
-		      $self->hide_creator?"1":"0",
-		      $self->secret?"1":"0",
+    $res[1] = sprintf("%s%s%s%s%s000",
+		      $self->deleted?"1":"0",
 		      $self->inherit?"1":"0",
-		      $self->deleted?"1":"0");
+		      $self->secret?"1":"0",
+		      $self->hide_creator?"1":"0",
+		      $self->dont_garb?"1":"0",
+		     );
+    $res[2] = $self->inherit_limit;
+    $res[3] = holl($self->data);
 
-    return \@res;
+    return @res;
 }
 
 =back

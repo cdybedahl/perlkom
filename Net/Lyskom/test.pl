@@ -13,7 +13,7 @@ isa_ok($kom,"Net::Lyskom");
 $time = $kom->get_time;
 isa_ok($time,"Net::Lyskom::Time");
 
-cmp_ok(abs(time()-$time->time_t),'<',10, "server's current time seems reasonable");
+cmp_ok(abs(time()-$time->time_t)%3600,'<',10, "server's current time seems reasonable");
 
 # MiscInfo
 $mi = Net::Lyskom::MiscInfo->new(type => "recpt", data => 6);

@@ -1,0 +1,2 @@
+package Net::Lyskom::MiscInfo;
+

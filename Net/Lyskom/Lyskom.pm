@@ -3,6 +3,7 @@ package Net::Lyskom;
 use strict;
 use IO::Socket;
 use Time::Local;
+use Net::Lyskom::AuxItem;
 
 use vars qw{
 	    @miscinfo_names
@@ -492,9 +493,9 @@ sub is_error {
 
 =item new([options])
 
-Creates a new Net::Lyskom object and connect to a LysKOM server. By default
-it connects to Lysator's server (I<kom.lysator.liu.se>, port 4894). To connect
-to another server, use named arguments.
+Creates a new Net::Lyskom object and connect to a LysKOM server. By
+default it connects to the server at Lysator (I<kom.lysator.liu.se>,
+port 4894). To connect to another server, use named arguments.
 
     $a = Net::Lyskom->new(Host => "kom.csd.uu.se", Port => 4894);
 
@@ -613,8 +614,8 @@ sub handle_asynch {
 
 =item logout
 
-Log out from LysKOM, this call doesn't disconnect the session, which means you can login again
-without the need of calling another new.
+Log out from LysKOM, this call does not disconnect the session, which
+means you can login again without the need of calling another new.
 
      $a->logout();
 
@@ -1258,7 +1259,7 @@ sub get_last_text {
     }
 }
 
-=item find_text_no
+=item find_next_text_no
 
 =cut
 

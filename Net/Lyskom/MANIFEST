@@ -4,3 +4,6 @@ Makefile.PL
 MANIFEST
 README
 test.pl
+Examples/gunther.pl
+Lyskom/MiscInfo.pm
+Lyskom/AuxItem.pm

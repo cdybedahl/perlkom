@@ -614,7 +614,9 @@ sub handle_asynch {
 =item logout
 
 Log out from LysKOM, this call doesn't disconnect the session, which means you can login again
-without the need of calling another new().
+without the need of calling another new.
+
+     $a->logout();
 
 =cut
 
@@ -659,6 +661,8 @@ sub change_conference {
 
 Change name of the person or conference numbered $conference to $new_name.
 
+    $a->change_name(46, 'Sweden (the strange land)');
+
 =cut
 
 sub change_name {
@@ -701,7 +705,29 @@ sub change_what_i_am_doing {
     }
 }
 
-# Call 7 - set-priv-bits - is to be inserted here
+=item set_priv_bits($person, $privileges)
+
+Set the privbits on person $person to $privileges
+
+    $a->set_priv_bits(6,'0010000000000000');
+
+=cut
+
+sub set_priv_bits {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $person = shift;
+    my $privileges = shift;
+    my @res;
+
+    $self->{socket}->print($this . ' 7 ' . $person . ' ' . $privileges . "\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
 
 =item set_passwd($person, $old_pwd, $new_pwd) 
 
@@ -794,6 +820,31 @@ sub set_presentation {
     my @res;
 
     $self->{socket}->print($this . ' 16 ' . $conf_no . ' ' . $text_no . ' ');
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
+=item set_etc_motd($conf_no, $text_no)
+
+Sets the messages of the day on the conference or person $conf_no to
+$text_no and removes the old message.
+
+    $a->set_etc_motd(6,1);
+    
+=cut
+
+sub set_etc_motd {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $conf_no = shift;
+    my $text_no = shift;
+    my @res;
+
+    $self->{socket}->print($this . ' 17 ' . $conf_no . ' ' . $text_no . "\n");
     @res = $self->getres;
     if ($self->is_error(@res)) {
 	return 0;
@@ -1608,6 +1659,7 @@ __END__
 =head1 AUTHORS
 
 =item Calle Dybedahl <calle@lysator.liu.se>
+
 =item Erik S-O Johansson <fl@erp.nu>
 
 =head1 SEE ALSO

@@ -1442,7 +1442,7 @@ sub set_expire {
 
 =item mark_text($text, $mark)
 
-Sets a mark of (numerical) type C<$type> on text number C<$text>.
+Sets a mark of (numerical) type C<$mark> on text number C<$text>.
 
 =cut
 

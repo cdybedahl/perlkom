@@ -16,7 +16,7 @@ $Net::Lyskom::VERSION = '0.02';
 
 =head1 NAME
 
-Net::Lyskom - Perl-modul för att prata med LysKom-servrar.
+Net::Lyskom - Perl module used to talk to LysKOM servers.
 
 =head1 SYNOPSIS
 
@@ -25,11 +25,11 @@ Net::Lyskom - Perl-modul för att prata med LysKom-servrar.
   $a = Net::Lyskom->new();
   $conf = 6;
 
-  $a->login(437,"Gud",1)
+  $a->login(437,"God",1)
     or die "Failed to log in: $a->{err_string}\n";
 
   $b = $a->create_text(
-	  	       "Testärende\nTesttextkropp.",
+	  	       "Testsubject\nA nice and tidy message body.",
 		       [to => 437],
 		      );
 
@@ -43,9 +43,9 @@ Net::Lyskom - Perl-modul för att prata med LysKom-servrar.
 
 =head1 DESCRIPTION
 
-Net::Lyskom.pm är en modul för att prata med LysKom-servrar. Än så länge
-saknar den en himla massa funktionalitet, men är tillräckligt komplett
-för att kunna användas till statistikbottar och liknande.
+Net::Lyskom is a module used to talk to LysKOM servers. This far
+it lacks a lot of functions, but there is enough functions implemented
+to program statistic robots and such.
 
 =head2 Metoder
 
@@ -456,11 +456,13 @@ sub parse_text_mapping {
 
 =item is_error($code, $err_no, $err_status)
 
-Tittar på en respons från servern och avgör om det är ett
-felmeddelande, och sätter i så fall lämpliga variabler i objektet.
-Returnerar sant om responsen är ett felsvar, falskt om det är ett
-vanligt svar och anropar C<die()> om det inte ser ut som en
-server-respons alls.
+Look at a response from the server and decides if it is a
+error message and if thats the case sets some variables in the object
+and returns true.
+
+Calls C<die()> if the response dont look as a server response at all.
+
+This sub is intended for internal use.
 
 =cut
 
@@ -484,20 +486,20 @@ sub is_error {
 	$self->{err_string} = $error[$err_no];
 	return 1;		# Is an error
     } else {
-	die "Vafan error? ($code)\n";
+	die "An unknown error? ($code)\n";
     }
 }
 
 =item new([options])
 
-Skapar ett nytt Net::Lyskom-objekt och kopplar upp sig mot en LysKom-server.
-Per default kopplar den upp sig mot Lysators server
-(I<kom.lysator.liu.se>, port 4894). För att koppla upp mot en annan
-server, använd namngivna argument:
+Creates a new Net::Lyskom object and connect to a LysKOM server. By default
+it connects to Lysator's server (I<kom.lysator.liu.se>, port 4894). To connect
+to another server, use named arguments.
 
     $a = Net::Lyskom->new(Host => "kom.csd.uu.se", Port => 4894);
 
-Returnerar ett objekt om allt går bra, C<undef> annars.
+If the connections succeded, a object is returned, if not C<undef> is
+returned.
 
 =cut
 
@@ -538,9 +540,10 @@ sub new {
 
 =item getres()
 
-Hämtar in ett meddelande från servern. Asynkrona meddelanden lämnas
-över till C<handle_asynch()>. Se till att du vet vad du gör innan du
-anropar den här metoden, den är avsedd för internt bruk.
+Get responses and asynchronous messages from the server. The asynchronous
+messages is passed to C<handle_async()>. This method is intended for
+internal use, and shall normally not be used anywhere else then in
+this module.
 
 =cut
 
@@ -558,8 +561,8 @@ sub getres {
 
 =item getres_sub()
 
-Hjälpfunktion till C<getres()>. Se till att du I<verkligen> vet du vad
-du gör innan du anropar den.
+Helper function to C<getres()>. Be careful and I<understand> what you are
+up to before using it.
 
 =cut
 
@@ -596,8 +599,8 @@ sub getres_sub {
 
 =item handle_asynch()
 
-Anropas automatiskt när vi tar emot ett asynkront meddelande från
-servern. Gör för närvarande inte ett skvatt.
+Is automaticly called when a asynchronous message is returned from
+the server. Currently this routine does nothing.
 
 =cut
 
@@ -610,7 +613,8 @@ sub handle_asynch {
 
 =item logout
 
-Kopplar ifrån användaren från servern, men bryter inte kopplet.
+Log out from LysKOM, this call doesn't disconnect the session, which means you can login again
+without the need of calling another new().
 
 =cut
 
@@ -630,7 +634,9 @@ sub logout {
 
 =item change_conference ($conference)
 
-Ändrar aktivt möte på nuvarande session
+Changes current conference of the session.
+
+    $a->change_conference(4711);
 
 =cut
 
@@ -651,7 +657,7 @@ sub change_conference {
 
 =item change_name ($conference, $new_name)
 
-Byter namn på personen eller mötet med nummer $conference till $new_name.
+Change name of the person or conference numbered $conference to $new_name.
 
 =cut
 
@@ -673,7 +679,10 @@ sub change_name {
 
 =item change_what_i_am_doing ($what_am_i_doing)
 
-Talar om för servern vad den inloggade personen gör, används gärna kreativt.
+Tells the server what the logged-in user is doing. You are encouraged to use
+this call creatively.
+
+    $a->change_what_i_am_doing('Eating smorgasbord');
 
 =cut
 
@@ -692,13 +701,13 @@ sub change_what_i_am_doing {
     }
 }
 
-# Anrop 7 - set-priv-bits
+# Call 7 - set-priv-bits - is to be inserted here
 
 =item set_passwd($person, $old_pwd, $new_pwd) 
 
-Ändrar lösenordet för personen med personnummer $person,
-$old_pwd skall sättas till den inloggade personens lösenord och 
-$new_pwd är det nya lösenordet.
+Changes the password of $person to $new_pwd.
+
+$old_pwd is the password of the currently logged in person.
 
 =cut
 
@@ -721,7 +730,10 @@ sub set_passwd {
 
 =item delete_conf($conf)
 
-Deletes the conference with number $conf. If $conf is a mailbox, the corresponding user is also deleted.
+Deletes the conference with number $conf. If $conf is a mailbox,
+the corresponding user is also deleted.
+
+    $a->delete_conf(42);
 
 =cut
 
@@ -742,7 +754,10 @@ sub delete_conf {
 
 =item sub_member($conf_no, $pers_no)
 
-Plockar bort personen $pers_no som medlem från $conf_no
+Removes the person $pers_no from the membership list of
+conference $conf_no.
+
+    $a->sub_member(42,4711);
 
 =cut
 
@@ -764,7 +779,10 @@ sub sub_member {
 
 =item set_presentation($conf_no, $text_no)
 
-Set the text $text_no as presentation for $conf_no. To remove a presentation, use $text_no = 0
+Set the text $text_no as presentation for $conf_no.
+To remove a presentation, use $text_no = 0
+
+    $a->set_presentation(42,4711);
 
 =cut
 
@@ -786,7 +804,8 @@ sub set_presentation {
 
 =item set_supervisor($conf_no, $admin)
 
-Set person/conference $admin as supervisor for the conference $conf_no
+Set person/conference $admin as supervisor for the
+conference $conf_no
 
 =cut
 
@@ -809,7 +828,7 @@ sub set_supervisor {
 =item set_permitted_submitters($conf_no, $perm_sub)
 
 Set $perm_sub as permitted subscribers for $conf_no. If $perl_sum = 0, all users are
-welcome to write in the conference
+welcome to write in the conference.
 
 =cut
 
@@ -853,7 +872,9 @@ sub set_super_conf {
 
 =item set_garb_nice($conf_no, $nice)
 
-Sätter garbtiden för mötet $conf_no till $nice dagar
+Sets the garb time for the conference $conf_no to $nice days.
+
+    $a->set_garb_nice(42,7);
 
 =cut
 
@@ -873,28 +894,32 @@ sub set_garb_nice {
     }
 }
 
-=item get_text($textno, $start, $end)
+=item get_text($text, $start_char, $end_char)
 
-Hämta en text från servern. Första argumentet anger det globala numret
-på den text som skall hämtas, det andra anger hur många tecken in i
-inlägget vi vill börja hämta text och det tredje med vilket tecken vi
-inte vill hämta mer. Default-värden för argumenten är (i ordning)
-4711, 0 och 2147483647. De sista två ser till att hela inlägg alltid
-hämtas, om inte annat anges. 
+Get a text from the server, the first argument, $text, is the global text number
+for the text to get. The retrival stars at position $start_char (the first character
+in the text is numbererd 0) and ends at position $end_char.
+
+Default is 0 for $start_char and 2147483647 for $end_char. This means that a complete
+message is fetched, unless otherwise stated.
+
+To get the first 100 chars from text 4711:
+
+    my $text = $a->get_text(4711, 0, 100);
 
 =cut
 
 sub get_text {
     my $self = shift;
-    my ($textno, $start, $end) = @_;
+    my ($text, $start_char, $end_char) = @_;
     my $this = $self->{refno}++;
     my @res;
 
-    $textno = 4711 unless $textno;
-    $start = 0 unless $start;
-    $end = 2147483647 unless $end;
+    $text = 4711 unless $text;
+    $start_char = 0 unless $start_char;
+    $end_char = 2147483647 unless $end_char;
 
-    $self->{socket}->print("$this 25 $textno $start $end\n");
+    $self->{socket}->print("$this 25 $text $start_char $end_char\n");
     @res = $self->getres;
     if ($self->is_error(@res)) {
 	return 0;
@@ -905,7 +930,7 @@ sub get_text {
 
 =item delete_text($text)
 
-Raderar texten med textnumret $text från databasen.
+Deletes the text with the global text number $text from the database.
 
 =cut
 
@@ -926,7 +951,7 @@ sub delete_text {
 
 =item get_time
 
-Fråga servern efter tiden
+Ask the server for the current time.
 
 =cut
 
@@ -948,7 +973,7 @@ sub get_time {
 
 =item set_unread($conf_no, $no_of_unread)
 
-Sätter antalet olästa för mötet $conf_no till $no_of_unread.
+Only read the $no_of_unread texts in the conference $conf_no.
 
 =cut
 
@@ -970,7 +995,8 @@ sub set_unread {
 
 =item set_motd_of_lyskom($text_no)
 
-Sätter $text_no som message of the day för LysKOM-servern
+Sets the login message of LysKOM, can only be executed by a privileged person,
+with the proper privileges enabled.
 
 =cut
 
@@ -991,7 +1017,7 @@ sub set_motd_of_lyskom {
 
 =item enable($level)
 
-Ställ säkerhetsnivån för nuvarande session till $level
+Sets the security level for the current session to $level.
 
 =cut
 
@@ -1012,7 +1038,10 @@ sub enable {
 
 =item sync_kom
 
-Sparar den permanenta serverdatabasen till disk från minnet. Kräver att administratörsbiten är satt.
+This call instructs the LysKOM server to make sure the permanent copy of its
+databas is current. This call is privileged in most implementations.
+
+    $a->sync_kom();
 
 =cut
 
@@ -1032,7 +1061,8 @@ sub sync_kom {
 
 =item shutdown_kom($exit_val)
 
-Stänger ned lyskomservern. $exit_val används ej idag.
+Instructs the server to save all data and shut down. The variable $exit_val is
+currently not used.
 
 =cut
 
@@ -1053,7 +1083,7 @@ sub shutdown_kom {
 
 =item get_person_stat($persno)
 
-Hämta status för en person från servern.
+Get status for a person from the server.
 
 =cut
 
@@ -1075,7 +1105,10 @@ sub get_person_stat {
 
 =item get_unread_confs($pers_no)
 
-Hämtar en lista på olästa konferenser för personen $pers_no.
+Get a list of conference numbers in which the person $pers_no
+may have unread texts.
+
+    my @unread_confs = $a->get_unread_confs(7);
 
 =cut
 
@@ -1097,7 +1130,11 @@ sub get_unread_confs {
 
 }
 
-=item send_message($recipient, $text)
+=item send_message($recipient, $message)
+
+Sends the message $message to all members of $recipient that is
+currently logged in. If $recipient is 0, the message is sent to all
+sessions that are logged in.
 
 =cut
 
@@ -1105,11 +1142,11 @@ sub send_message {
     my $self = shift;
     my $this = $self->{refno}++;
     my $recipient = shift;
-    my $text = shift;
+    my $message = shift;
     my $tmp;
     my @res;
 
-    $tmp = "$this 53 $recipient ".holl($text)." ";
+    $tmp = "$this 53 $recipient ".holl($message)." ";
 
     $self->{socket}->print($tmp);
     @res = $self->getres;
@@ -1122,7 +1159,9 @@ sub send_message {
 
 =item who_am_i
 
-Hämta sessionsnumret från servern för den aktiva sessionen.
+Get the session number of the current session.
+
+    my $session_number = $a->who_am_i();
 
 =cut
 
@@ -1210,9 +1249,9 @@ sub find_previous_text_no {
 
 =item login($persno, $pwd, $invis)
 
-Logga in. Det första argumentet är numret på den person som skall
-loggas in, det andra argumentet är den personens lösenord och om det
-tredje argumentet är sant görs en osynlig inloggning.
+Log in to LysKOM. $persno is the number of the person which is to be
+logged in. $pwd is the password of that person. If $invis is true, a
+secret login is done (the session is not visible in who-is-on-lists et al.)
 
 =cut
 
@@ -1235,7 +1274,10 @@ sub login {
 
 =item set_client_version($client_name, $client_version)
 
-Tala om för servern vilket klientens namn är och vilken version klienten har.
+Tells the server that this is the software $client_name and the
+version $client_version.
+
+    $a->set_client_version('My-cool-software','0.001 beta');
 
 =cut
 
@@ -1258,7 +1300,8 @@ sub set_client_version {
 
 =item get_client_name($session)
 
-Fråga servern efter klientens namn för ett visst sessionsnummer
+Ask the server for the name of the client software logged in with
+session number $session.
 
 =cut
 
@@ -1281,7 +1324,8 @@ sub get_client_name {
 
 =item get_client_version($session)
 
-Fråga servern efter klientens namn för ett visst sessionsnummer
+Ask the server for the version of the client software logged in with
+session number $session.
 
 =cut
 
@@ -1304,7 +1348,7 @@ sub get_client_version {
 
 =item get_version_info
 
-Fråga servern efter versionsnummer
+Ask the server for the version info of the server software itself.
 
 =cut
 
@@ -1323,11 +1367,13 @@ sub get_version_info {
     }
 }
 
-=item lookup_z_name($name, $wantpers, $wantconf)
+=item lookup_z_name($name, $want_pers, $want_conf)
 
-Slå upp namn. Första argumentet är namnet (eller delen av namnet) som
-söks, de andra två argumenten indikerar om man söker efter namn på
-personer, möten eller bägge.
+Lookup the name $name in the server, returns a list of all matching conferences
+and/or persons. The server database is searched with standard kom name expansion.
+
+If $want_pers is true, the server includes persons in the answer, if $want_conf
+is true, conferences is included.
 
 =cut 
 
@@ -1335,10 +1381,10 @@ sub lookup_z_name {
     my $self = shift;
     my $this = $self->{refno}++;
     my @res;
-    my ($name, $wantpers, $wantconf) = @_;
+    my ($name, $want_pers, $want_conf) = @_;
     my $tmp;
 
-    $tmp = sprintf "%d 76 %s %d %d\n",$this,holl($name),($wantpers?1:0),($wantconf?1:0);
+    $tmp = sprintf "%d 76 %s %d %d\n",$this,holl($name),($want_pers?1:0),($want_conf?1:0);
     $self->{socket}->print($tmp);
     @res = $self->getres;
     if ($self->is_error(@res)) {
@@ -1370,6 +1416,8 @@ sub user_active {
 }
 
 =item create_text
+
+Create a text.
 
 =cut
 
@@ -1452,9 +1500,9 @@ sub get_text_stat {
     }
 }
 
-=item get_conf_stat
+=item get_conf_stat($conf_no)
 
-Hämta status för ett möte från servern.
+Get status for a conference from the server.
 
 =cut
 
@@ -1476,7 +1524,7 @@ sub get_conf_stat {
 
 =item query_predefined_aux_items 
 
-Fråga servern vilka fördefinierade aux-items som finns.
+Ask the server which predefined aux items that exists in the server.
 
 =cut
 
@@ -1498,7 +1546,10 @@ sub query_predefined_aux_items {
 
 =item get_membership($person, $first, $no_of_confs, $want_read_texts)
 
-Be servern skicka en lista på medlemskap för personen $person.
+Get a membership list for the person $person. Start at position $first in
+the membership list and get $no_of_confs conferences. If $want_read_texts is
+true the server will also send information about read texts in the
+conference.
 
 =cut
 
@@ -1557,7 +1608,6 @@ __END__
 =head1 AUTHORS
 
 =item Calle Dybedahl <calle@lysator.liu.se>
-
 =item Erik S-O Johansson <fl@erp.nu>
 
 =head1 SEE ALSO

@@ -1,4 +1,5 @@
-use Test::More 'no_plan';
+use Test::More tests => 21;
+use Data::Dumper;
 
 # Does the module even load?
 BEGIN {use_ok('Net::Lyskom')}

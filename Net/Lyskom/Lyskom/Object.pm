@@ -84,12 +84,33 @@ sub gen_call_scalar {
 
 sub server_call {
     my $self = shift;
-    my $this = $self->{refno}++;
 
-    $self->send(
-		join " ", $this, @_, "\x0a"
-	       );
-    return $self->getres;
+    if (ref($_[0]) && ref($_[0]) eq "ARRAY") {
+	my ($str, @res);
+
+	foreach (@{$_[0]}) {
+	    $str .= join " ",$self->{refno}++,@{$_},"\x0a";
+	}
+	$self->send($str);
+	foreach (@{$_[0]}) {
+	    my @tmp = $self->getres;
+	    splice @tmp, 0, 1, ($1,$2) if $tmp[0] =~ /^(=|%)(\d+)/;
+	    push @res,[@tmp];
+	}
+	@res = sort {$a->[1] <=> $b->[1]} @res;
+	foreach (@res) {
+	    my ($a,$b) = splice @{$_},0,2;
+	    unshift @{$_},$a.$b;
+	}
+	return @res;
+    } else {
+	my $this = $self->{refno}++;
+
+	$self->send(
+		    join " ", $this, @_, "\x0a"
+		   );
+	return $self->getres;
+    }
 }
 
 1;

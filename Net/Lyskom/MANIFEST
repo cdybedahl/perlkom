@@ -20,3 +20,4 @@ Lyskom/DynamicSession.pm
 Lyskom/StaticSession.pm
 Lyskom/Member.pm
 Lyskom/Info.pm
+Lyskom/Simple.pm

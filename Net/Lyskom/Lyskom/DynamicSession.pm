@@ -11,7 +11,7 @@ Net::Lyskom::DynamicSession - dynamic session info object
 
 =head1 SYNOPSIS
 
-  print "This session has been idle for ",$obj->idle_time, " minutes.\n";
+  print "This session has been idle for ",$obj->idle_time, " seconds.\n";
 
 =head1 DESCRIPTION
 
@@ -31,7 +31,7 @@ Number of working conference.
 
 =item ->idle_time()
 
-Number of minutes idle or number of seconds since session was created.
+Number of seconds idle or number of seconds since session was created.
 
 =item ->what_am_i_doing()
 
@@ -44,8 +44,8 @@ This session has requested that it be invisible.
 =item ->user_active_used()
 
 True if the client has issued a C<user_active> call, which means that
-the various idle-time counters count idle time in minutes rather than
-time since creation in seconds.
+the various idle-time counters count idle time rather than time since
+creation.
 
 =item ->user_absent()
 

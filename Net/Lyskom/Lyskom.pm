@@ -38,7 +38,7 @@ Net::Lyskom - Perl module used to talk to LysKOM servers.
   $conf = 6;
 
   $a->login(pers_no => 437, password => "God", invisible => 1)
-    or die "Failed to log in: $a->{err_string}\n";
+    or die "Failed to log in: $a->err_string\n";
 
   $b = $a->send_message(7680, "Oook!");
 
@@ -51,7 +51,7 @@ Net::Lyskom - Perl module used to talk to LysKOM servers.
   if ($b) {
       print "Text number $b created.\n";
   } else {
-      print "Text creation failed: $a->{err_string}.\n";
+      print "Text creation failed: $a->err_string.\n";
   }
 
 =head1 DESCRIPTION
@@ -165,6 +165,10 @@ sub is_error {
     }
 }
 
+sub err_no {my $s = shift; return $s->{err_no}}
+sub err_status {my $s = shift; return $s->{err_status}}
+sub err_string {my $s = shift; return $s->{err_string}}
+
 =item new([options])
 
 Creates a new Net::Lyskom object and connect to a LysKOM server. By
@@ -206,7 +210,6 @@ sub new {
     my $tmp = $self->{socket}->getline;
     while (!$tmp || $tmp !~ /LysKOM/) {
 	$tmp = $self->{socket}->getline;
-	debug "From server: $tmp";
     }
 
     bless $self, $class;
@@ -247,7 +250,6 @@ sub getres_sub {
     my @res;
 
     $r = $self->{socket}->getline;
-    debug($r);
     while ($r) {
 	if ($r =~ m|^(\d+)H(.*)$|) { # Start of a hollerith string
 	    my $tot_len = $1;
@@ -1159,24 +1161,34 @@ sub get_text_stat {
     }
 }
 
-=item get_conf_stat($conf_no)
+=item get_conf_stat(@conf_no)
 
-Get status for a conference from the server. Returns a
-L<Net::Lyskom::Conference> object.
+Get status for one or more conferences from the server. Returns a
+L<Net::Lyskom::Conference> object in scalar context and a list of such
+objects in list context.
 
 =cut
 
 sub get_conf_stat {
     my $self = shift;
-    my $confno = shift;
+    my @confno = @_;
     my @res;
+    my @tmp;
 
-    @res = $self->server_call(91, $confno);
-    if ($self->is_error(@res)) {
-	return 0;
+    @tmp = $self->server_call([map {[91,$_]} @confno]);
+    foreach (@tmp) {
+	if ($self->is_error(@{$_})) {
+	    push @res,undef;
+	} else {
+	    shift @{$_};		# Remove return code
+	    push @res, Net::Lyskom::Conference->new_from_stream($_);
+	}
+    }
+
+    if (wantarray) {
+	return @res;
     } else {
-	shift @res;		# Remove return code
-	return Net::Lyskom::Conference->new_from_stream(\@res);
+	return $res[0];
     }
 }
 
@@ -1609,13 +1621,24 @@ filled.
 
 sub get_uconf_stat {
     my $self = shift;
-    my $conf = shift;
+    my @confno = @_;
+    my @res;
+    my @tmp;
 
-    my @res = $self->server_call(78, $conf);
-    if ($self->is_error(@res)) {
-	return undef;
+    @tmp = $self->server_call([map {[78,$_]} @confno]);
+    foreach (@tmp) {
+	if ($self->is_error(@{$_})) {
+	    push @res,undef;
+	} else {
+	    shift @{$_};		# Remove return code
+	    push @res, Net::Lyskom::Conference->new_from_ustream($_);
+	}
+    }
+
+    if (wantarray) {
+	return @res;
     } else {
-	return Net::Lyskom::Conference->new_from_ustream(\@res);
+	return $res[0];
     }
 }
 
@@ -1827,7 +1850,7 @@ sub modify_conf_info {
 				   scalar @{$arg{delete}},
 				   '{',@{$arg{delete}},'}',
 				   scalar @{$arg{add}},
-				   '{', map {$_->to_server} @{arg{add}},'}'
+				   '{', map {$_->to_server} @{$arg{add}},'}'
 				   );
 }
 
@@ -1849,7 +1872,7 @@ sub modify_system_info {
 				   scalar @{$arg{delete}},
 				   '{',@{$arg{delete}},'}',
 				   scalar @{$arg{add}},
-				   '{', map {$_->to_server} @{arg{add}},'}'
+				   '{', map {$_->to_server} @{$arg{add}},'}'
 				   );
 
 }

@@ -605,7 +605,7 @@ sub handle_asynch {
     my $self = shift;
     my @call = @_;
 
-    debug "Asynch: @call";
+    #debug "Asynch: @call";
 }
 
 =item logout

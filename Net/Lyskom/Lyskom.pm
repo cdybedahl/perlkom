@@ -456,11 +456,12 @@ sub parse_text_mapping {
 
 =item is_error($code, $err_no, $err_status)
 
-Look at a response from the server and decides if it is a
-error message and if thats the case sets some variables in the object
-and returns true.
+Looks at a response from the server and decides if it is an error
+message and if that is the case sets some variables in the object and
+returns true.
 
-Calls C<die()> if the response dont look as a server response at all.
+Calls C<die()> if the response does not look as a server response at
+all.
 
 This sub is intended for internal use.
 
@@ -498,7 +499,7 @@ port 4894). To connect to another server, use named arguments.
 
     $a = Net::Lyskom->new(Host => "kom.csd.uu.se", Port => 4894);
 
-If the connections succeded, a object is returned, if not C<undef> is
+If the connection succeded, an object is returned, if not C<undef> is
 returned.
 
 =cut
@@ -947,12 +948,13 @@ sub set_garb_nice {
 
 =item get_text($text, $start_char, $end_char)
 
-Get a text from the server, the first argument, $text, is the global text number
-for the text to get. The retrival stars at position $start_char (the first character
-in the text is numbererd 0) and ends at position $end_char.
+Get a text from the server, the first argument, $text, is the global
+text number for the text to get. The retrival stars at position
+$start_char (the first character in the text is numbererd 0) and ends
+at position $end_char.
 
-Default is 0 for $start_char and 2147483647 for $end_char. This means that a complete
-message is fetched, unless otherwise stated.
+Default is 0 for $start_char and 2147483647 for $end_char. This means
+that a complete message is fetched, unless otherwise stated.
 
 To get the first 100 chars from text 4711:
 
@@ -992,6 +994,75 @@ sub delete_text {
     my @res;
 
     $self->{socket}->print($this . ' 29 ' . $text . ' ');
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
+=item add_recipient($text_no, $conf_no, $recpt_type)
+
+Add a recipient to a text.
+
+=cut
+
+sub add_recipient {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $textno = shift;
+    my $confno = shift;
+    my $recpttype = shift;
+    my @res;
+
+    $self->{socket}->print("$this 30 $textno $confno $recpttype\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
+=item sub_recipient($text_no, $conf_no)
+
+Remove a recipient from a text.
+
+=cut
+
+sub sub_recipient {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $textno = shift;
+    my $confno = shift;
+    my @res;
+
+    $self->{socket}->print("$this 31 $textno $confno\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
+=item add_comment($text_no, $comment_to)
+
+Add a comment link between the text comment-to and the text text-no
+(text-no becomes a comment to the text comment-to). This call is used
+to add comment links after a text has been created.
+
+=cut
+
+sub add_comment {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my $textno = shift;
+    my $commentto = shift;
+    my @res;
+
+    $self->{socket}->print("$this 32 $textno $commentto\n");
     @res = $self->getres;
     if ($self->is_error(@res)) {
 	return 0;
@@ -1205,51 +1276,6 @@ sub send_message {
 	return ();
     } else {
 	return $res[0];
-    }
-}
-
-=item add_recipient($text_no, $conf_no, $recpt_type)
-
-Add a recipient to a text.
-
-=cut
-
-sub add_recipient {
-    my $self = shift;
-    my $this = $self->{refno}++;
-    my $textno = shift;
-    my $confno = shift;
-    my $recpttype = shift;
-    my @res;
-
-    $self->{socket}->print("$this 30 $textno $confno $recpttype\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
-    }
-}
-
-=item sub_recipient($text_no, $conf_no)
-
-Remove a recipient from a text.
-
-=cut
-
-sub sub_recipient {
-    my $self = shift;
-    my $this = $self->{refno}++;
-    my $textno = shift;
-    my $confno = shift;
-    my @res;
-
-    $self->{socket}->print("$this 31 $textno $confno\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
     }
 }
 
@@ -1618,6 +1644,28 @@ sub get_conf_stat {
     }
 }
 
+=item butt_ugly_fast_reply($text, $data)
+
+Adds a fast-reply auxitem with the contents $data to the text $text.
+
+=cut
+
+sub butt_ugly_fast_reply {
+    my $self = shift;
+    my $this = $self->{refno}++;
+    my ($text, $data) = @_;
+    my @res;
+
+    $self->{socket}->print("$this 92 $text 0 { } 1 { 2 00000000 0 " .
+                       holl($data) . "}\n");
+    @res = $self->getres;
+    if ($self->is_error(@res)) {
+	return 0;
+    } else {
+	return 1;
+    }
+}
+
 =item query_predefined_aux_items 
 
 Ask the server which predefined aux items that exists in the server.
@@ -1689,28 +1737,6 @@ sub local_to_global {
     } else {
 	shift @res;		# Remove return code
 	return parse_text_mapping(@res);
-    }
-}
-
-=item butt_ugly_fast_reply($text, $data)
-
-Adds a fast-reply auxitem with the contents $data to the text $text.
-
-=cut
-
-sub butt_ugly_fast_reply {
-    my $self = shift;
-    my $this = $self->{refno}++;
-    my ($text, $data) = @_;
-    my @res;
-
-    $self->{socket}->print("$this 92 $text 0 { } 1 { 2 00000000 0 " .
-                       holl($data) . "}\n");
-    @res = $self->getres;
-    if ($self->is_error(@res)) {
-	return 0;
-    } else {
-	return 1;
     }
 }
 

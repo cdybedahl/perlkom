@@ -65,15 +65,15 @@ sub new {
     $class = ref($class) if ref($class);
     bless $s,$class;
 
-    $s->{seconds} = $a{seconds} || $sec;
-    $s->{minutes} = $a{minutes} || $min;
-    $s->{hours} = $a{hours} || $hour;
-    $s->{day} = $a{day} || $mday;
-    $s->{month} = $a{month} || $mon;
-    $s->{year} = $a{year} || $year;
-    $s->{day_of_week} = $a{day_of_week} || $wday;
-    $s->{day_of_year} = $a{day_of_year} || $yday;
-    $s->{is_dst} = $a{is_dst} || $isdst;
+    $s->{seconds}     = exists $a{seconds}     ? $a{seconds}     : $sec;
+    $s->{minutes}     = exists $a{minutes}     ? $a{minutes}     : $min;
+    $s->{hours}       = exists $a{hours}       ? $a{hours}       : $hour;
+    $s->{day}         = exists $a{day}         ? $a{day}         : $mday;
+    $s->{month}       = exists $a{month}       ? $a{month}       : $mon;
+    $s->{year}        = exists $a{year}        ? $a{year}        : $year;
+    $s->{day_of_week} = exists $a{day_of_week} ? $a{day_of_week} : $wday;
+    $s->{day_of_year} = exists $a{day_of_year} ? $a{day_of_year} : $yday;
+    $s->{is_dst}      = exists $a{is_dst}      ? $a{is_dst}      : $isdst;
 
     return $s;
 }

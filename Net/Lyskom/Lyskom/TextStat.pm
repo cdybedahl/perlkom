@@ -137,7 +137,7 @@ sub body {
     return $s->{body} if exists($s->{body});
     return undef unless $s->{connection} && $s->{textno};
 
-    my $raw = $s->{connection}->get_text($s->{textno}) or croak;
+    my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
     my ($subj, $body) = split(/\n/, $raw, 2);
     $s->{subject} = $subj;
     $s->{body} = $body;

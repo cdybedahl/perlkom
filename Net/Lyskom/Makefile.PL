@@ -5,6 +5,7 @@ WriteMakefile(
     'NAME'		=> 'Net::Lyskom',
     'VERSION_FROM'	=> 'Lyskom.pm', # finds $VERSION
     'PREREQ_PM'		=> {Test::More => 0}, # e.g., Module::Name => 1.1
+    'MIN_PERL_VERSION'  => 5.008,
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM => 'Lyskom.pm', # retrieve abstract from module
        AUTHOR     => 'A. U. Thor <a.u.thor@a.galaxy.far.far.away>') : ()),

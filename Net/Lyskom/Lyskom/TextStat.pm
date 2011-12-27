@@ -7,6 +7,7 @@ use Net::Lyskom::Util qw{:all};
 use Net::Lyskom::MiscInfo;
 use Net::Lyskom::AuxItem;
 use Carp;
+use Encode;
 
 =head1 NAME
 
@@ -121,8 +122,18 @@ sub _fetch_subject_and_body {
     my $s = shift;
 
     my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
-    my ($subj, $body) = split(/\n/, $raw, 2);
 
+    my ($ct) = grep {$_->tag == 1} $s->aux_items;
+    if ($ct) {
+        my ($charset) = $ct->data =~ m|charset=([^;]+);?|i;
+        if ($charset) {
+            eval {
+                $raw = decode($charset, $raw);
+            };
+        }
+    }
+
+    my ($subj, $body) = split(/\n/, $raw, 2);
     $s->{subject} = $subj;
     $s->{body} = $body;
 }

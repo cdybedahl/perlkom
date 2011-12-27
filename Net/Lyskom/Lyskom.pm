@@ -43,10 +43,10 @@ Net::Lyskom - Perl module used to talk to LysKOM servers.
   $b = $a->send_message(7680, "Oook!");
 
   $b = $a->create_text(
-	  	       subject => "Testsubject",
+                       subject => "Testsubject",
                        body => "A nice and tidy message body.",
-		       recpt => [437],
-		      );
+                       recpt => [437],
+                      );
 
   if ($b) {
       print "Text number $b created.\n";
@@ -70,60 +70,60 @@ to program statistics robots and such.
 
 
 @error = qw(no-error
-	    unused
-	    not-implemented
-	    obsolete-call
-	    invalid-password
-	    string-too-long
-	    login-first
-	    login-disallowed
-	    conference-zero
-	    undefined-conference
-	    undefined-person
-	    access-denied
-	    permission-denied
-	    not-member
-	    no-such-text
-	    text-zero
-	    no-such-local-text
-	    local-text-zero
-	    bad-name
-	    index-out-of-range
-	    conference-exists
-	    person-exists
-	    secret-public
-	    letterbox
-	    ldb-error
-	    illegal-misc
-	    illegal-info-type
-	    already-recipient
-	    already-comment
-	    already-footnote
-	    not-recipient
-	    not-comment
-	    not-footnote
-	    recipient-limit
-	    comment-limit
-	    footnote-limit
-	    mark-limit
-	    not-author
-	    no-connect
-	    out-of-memory
-	    server-is-crazy
-	    client-is-crazy
-	    undefined-session
-	    regexp-error
-	    not-marked
-	    temporary-failure
-	    long-array
-	    anonymous-rejected
-	    illegal-aux-item
-	    aux-item-permission
-	    unknown-async
-	    internal-error
-	    feature-disabled
-	    message-not-sent
-	    invalid-membership-type);
+            unused
+            not-implemented
+            obsolete-call
+            invalid-password
+            string-too-long
+            login-first
+            login-disallowed
+            conference-zero
+            undefined-conference
+            undefined-person
+            access-denied
+            permission-denied
+            not-member
+            no-such-text
+            text-zero
+            no-such-local-text
+            local-text-zero
+            bad-name
+            index-out-of-range
+            conference-exists
+            person-exists
+            secret-public
+            letterbox
+            ldb-error
+            illegal-misc
+            illegal-info-type
+            already-recipient
+            already-comment
+            already-footnote
+            not-recipient
+            not-comment
+            not-footnote
+            recipient-limit
+            comment-limit
+            footnote-limit
+            mark-limit
+            not-author
+            no-connect
+            out-of-memory
+            server-is-crazy
+            client-is-crazy
+            undefined-session
+            regexp-error
+            not-marked
+            temporary-failure
+            long-array
+            anonymous-rejected
+            illegal-aux-item
+            aux-item-permission
+            unknown-async
+            internal-error
+            feature-disabled
+            message-not-sent
+            invalid-membership-type);
 
 
 ## Methods
@@ -146,22 +146,22 @@ sub is_error {
     my ($code, $err_no, $err_status) = @_;
 
     if ($code =~ /^=/) {
-	$self->{err_no} = 0;
-	$self->{err_status} = 0;
-	$self->{err_string} = "";
-	return 0;		# Not an error
+        $self->{err_no} = 0;
+        $self->{err_status} = 0;
+        $self->{err_string} = "";
+        return 0;               # Not an error
     } elsif ($code =~ /^%%/) {
-	$self->{err_no} = 4711;
-	$self->{err_status} = $err_status;
-	$self->{err_string} = "Protocol error!";
-	return 1;		# Is an error
+        $self->{err_no} = 4711;
+        $self->{err_status} = $err_status;
+        $self->{err_string} = "Protocol error!";
+        return 1;               # Is an error
     } elsif ($code =~ /^%/) {
-	$self->{err_no} = $err_no;
-	$self->{err_status} = $err_status;
-	$self->{err_string} = $error[$err_no];
-	return 1;		# Is an error
+        $self->{err_no} = $err_no;
+        $self->{err_status} = $err_status;
+        $self->{err_string} = $error[$err_no];
+        return 1;               # Is an error
     } else {
-	croak "An unknown error? ($code)\n";
+        croak "An unknown error? ($code)\n";
     }
 }
 
@@ -193,23 +193,23 @@ sub new {
 
     my $name =
       $arg{Name} ||
-	$ENV{USER} ||
-	  $ENV{LOGNAME} ||
-	    ((getpwuid($<))[0]);
+        $ENV{USER} ||
+          $ENV{LOGNAME} ||
+            ((getpwuid($<))[0]);
 
     $self->{refno} = 1;
 
     $self->{socket} = IO::Socket::INET->new(
-					    PeerAddr => $host,
-					    PeerPort => $port,
-					   )
+                                            PeerAddr => $host,
+                                            PeerPort => $port,
+                                           )
       or croak "Can't connect to remote server: $!\n";
 
     $self->{socket}->print("A".holl($name)."\n");
 
     my $tmp = $self->{socket}->getline;
     while (!$tmp || $tmp !~ /LysKOM/) {
-	$tmp = $self->{socket}->getline;
+        $tmp = $self->{socket}->getline;
     }
 
     bless $self, $class;
@@ -231,8 +231,8 @@ sub getres {
 
     @res = $self->getres_sub;
     while ($res[0] =~ m/^:/) {
-	$self->handle_asynch(@res);
-	@res = $self->getres_sub;
+        $self->handle_asynch(@res);
+        @res = $self->getres_sub;
     }
     return @res;
 }
@@ -251,26 +251,26 @@ sub getres_sub {
 
     $r = $self->{socket}->getline;
     while ($r) {
-	if ($r =~ m|^(\d+)H(.*)$|) { # Start of a hollerith string
-	    my $tot_len = $1;
-	    my $res;
-	    $r = $2."\n";
-	
-	    $res = substr $r, 0, $tot_len,"";
-	    while (length($res) < $tot_len) {
-		$r = $self->{socket}->getline;
-		debug($r);
-		$res .= substr $r, 0, ($tot_len-length($res)),"";
-	    }
-	    push @res, $res;
-	    if ($r eq "") {
-		$r = $self->{socket}->getline;
-	    }
-	    $r =~ s/^ //;
-	} else {
-	    ($f, $r) = split " ", $r, 2;
-	    push @res,$f;
-	}
+        if ($r =~ m|^(\d+)H(.*)$|) { # Start of a hollerith string
+            my $tot_len = $1;
+            my $res;
+            $r = $2."\n";
+        
+            $res = substr $r, 0, $tot_len,"";
+            while (length($res) < $tot_len) {
+                $r = $self->{socket}->getline;
+                debug($r);
+                $res .= substr $r, 0, ($tot_len-length($res)),"";
+            }
+            push @res, $res;
+            if ($r eq "") {
+                $r = $self->{socket}->getline;
+            }
+            $r =~ s/^ //;
+        } else {
+            ($f, $r) = split " ", $r, 2;
+            push @res,$f;
+        }
     }
     return @res;
 }
@@ -370,17 +370,17 @@ sub set_priv_bits {
     my $self = shift;
     my $person = shift;
     my %priv = (
-		wheel => 0,
-		admin => 0,
-		statistic => 0,
-		create_pers => 0,
-		create_conf => 0,
-		change_name => 0
-	       );
+                wheel => 0,
+                admin => 0,
+                statistic => 0,
+                create_pers => 0,
+                create_conf => 0,
+                change_name => 0
+               );
     my %arg = @_;
 
     foreach (keys %arg) {
-	$priv{$_} = $arg{$_}
+        $priv{$_} = $arg{$_}
     }
 
     my $pstring = join "", map {$_?"1":"0"}
@@ -411,10 +411,10 @@ sub set_passwd {
     my %arg = @_;
 
     return $self->gen_call_boolean(8,
-				   $arg{person},
-				   holl($arg{old_pwd}),
-				   holl($arg{new_pwd})
-				  );
+                                   $arg{person},
+                                   holl($arg{old_pwd}),
+                                   holl($arg{new_pwd})
+                                  );
 }
 
 =item delete_conf($conf)
@@ -603,11 +603,11 @@ sub add_recipient {
     my %arg = @_;
 
     if ($arg{type} eq "bcc") {
-	$arg{type} = 15
+        $arg{type} = 15
     } elsif ($arg{type} eq "cc") {
-	$arg{type} = 1
+        $arg{type} = 1
     } else {
-	$arg{type} = 0
+        $arg{type} = 0
     }
     return $self->gen_call_boolean(30,$arg{text_no},$arg{conf_no},$arg{type});
 }
@@ -654,10 +654,10 @@ sub get_time {
 
     @res = $self->server_call(35);
     if ($self->is_error(@res)) {
-	return undef;
+        return undef;
     } else {
-	shift @res;    # Remove return code
-	return Net::Lyskom::Time->new_from_stream(\@res);
+        shift @res;    # Remove return code
+        return Net::Lyskom::Time->new_from_stream(\@res);
     }
 }
 
@@ -745,10 +745,10 @@ sub get_person_stat {
 
     @res = $self->server_call(49, $persno);
     if ($self->is_error(@res)) {
-	return 0;
+        return 0;
     } else {
-	shift @res;		# Remove return code
-	return Net::Lyskom::Person->new_from_stream(\@res);
+        shift @res;             # Remove return code
+        return Net::Lyskom::Person->new_from_stream(\@res);
     }
 }
 
@@ -768,10 +768,10 @@ sub get_unread_confs {
 
     @res = $self->server_call(52, $pers_no);
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;    # Remove return code
-	return parse_array_stream(sub{shift @{$_[0]}},\@res);
+        shift @res;    # Remove return code
+        return parse_array_stream(sub{shift @{$_[0]}},\@res);
     }
 
 }
@@ -820,7 +820,7 @@ sub get_last_text {
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) =
                                                 localtime($time);
     return $self->gen_call_scalar(58,$sec,$min,$hour,$mday,$mon,$year,$wday,
-				  $yday,($isdst?1:0));
+                                  $yday,($isdst?1:0));
 }
 
 =item find_next_text_no($text_no)
@@ -864,9 +864,9 @@ sub login {
     my %arg = @_;
 
     return $self->gen_call_boolean(62,
-				   $arg{pers_no},
-				   holl($arg{password}),
-				   ($arg{invisible})?1:0);
+                                   $arg{pers_no},
+                                   holl($arg{password}),
+                                   ($arg{invisible})?1:0);
 }
 
 =item set_client_version($client_name, $client_version)
@@ -928,10 +928,10 @@ sub get_version_info {
 
     @res = $self->server_call(75);
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;    # Remove return code
-	return @res[0..2];
+        shift @res;    # Remove return code
+        return @res[0..2];
     }
 }
 
@@ -953,14 +953,14 @@ sub lookup_z_name {
     my %arg = @_;
 
     @res = $self->server_call(76,
-			      holl($arg{name}),
-			      ($arg{want_pers}?1:0),
-			      ($arg{want_conf}?1:0));
+                              holl($arg{name}),
+                              ($arg{want_pers}?1:0),
+                              ($arg{want_conf}?1:0));
     if ($self->is_error(@res)) {
-	return 0;
+        return 0;
     } else {
-	shift @res;		# Remove return code
-	return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
+        shift @res;             # Remove return code
+        return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
     }
 }
 
@@ -981,14 +981,14 @@ sub re_z_lookup {
     my %arg = @_;
 
     @res = $self->server_call(74,
-			      holl($arg{name}),
-			      ($arg{want_pers}?1:0),
-			      ($arg{want_conf}?1:0));
+                              holl($arg{name}),
+                              ($arg{want_pers}?1:0),
+                              ($arg{want_conf}?1:0));
     if ($self->is_error(@res)) {
-	return 0;
+        return 0;
     } else {
-	shift @res;		# Remove return code
-	return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
+        shift @res;             # Remove return code
+        return parse_array_stream(sub{Net::Lyskom::ConfZInfo->new_from_stream(@_)},\@res)
     }
 }
 
@@ -1029,13 +1029,13 @@ sub who_is_on_dynamic {
   $arg{active_last} = 0 unless $arg{active_last};
 
   @res = $self->server_call(83,
-			    ($arg{want_visible}?1:0),
-			    ($arg{want_invisible}?1:0),
-			    $arg{active_last});
+                            ($arg{want_visible}?1:0),
+                            ($arg{want_invisible}?1:0),
+                            $arg{active_last});
   if ($self->is_error(@res)) {
     return 0;
   } else {
-    shift @res;		# Remove return code
+    shift @res;         # Remove return code
     return parse_array_stream(sub{Net::Lyskom::DynamicSession->new_from_stream(@_)},\@res)
   }
 }
@@ -1054,10 +1054,10 @@ sub get_static_session_info {
 
     @res = $self->server_call(84, $session);
     if ($self->is_error(@res)) {
-	return undef;
+        return undef;
     } else {
-	shift @res;
-	return Net::Lyskom::StaticSession->new_from_stream(\@res);
+        shift @res;
+        return Net::Lyskom::StaticSession->new_from_stream(\@res);
     }
 }
 
@@ -1098,42 +1098,42 @@ sub create_text {
 
     push @call, holl($arg{subject}."\n".$arg{body});
     if ($arg{recpt}) {
-	foreach (@{$arg{recpt}}) {
-	    push @misc, 0, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{recpt}}) {
+            push @misc, 0, $_;
+            $misc_count++;
+        }
     }
     if ($arg{cc_recpt}) {
-	foreach (@{$arg{cc_recpt}}) {
-	    push @misc, 1, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{cc_recpt}}) {
+            push @misc, 1, $_;
+            $misc_count++;
+        }
     }
     if ($arg{bcc_recpt}) {
-	foreach (@{$arg{bcc_recpt}}) {
-	    push @misc, 15, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{bcc_recpt}}) {
+            push @misc, 15, $_;
+            $misc_count++;
+        }
     }
     if ($arg{comm_to}) {
-	foreach (@{$arg{comm_to}}) {
-	    push @misc, 2, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{comm_to}}) {
+            push @misc, 2, $_;
+            $misc_count++;
+        }
     }
     if ($arg{footn_to}) {
-	foreach (@{$arg{footn_to}}) {
-	    push @misc, 4, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{footn_to}}) {
+            push @misc, 4, $_;
+            $misc_count++;
+        }
     }
     push @call, $misc_count, '{', @misc, '}';
 
     if ($arg{aux}) {
-	foreach (@{$arg{aux}}) {
-	    push @aux, $_->to_server;
-	    $aux_count++;
-	}
+        foreach (@{$arg{aux}}) {
+            push @aux, $_->to_server;
+            $aux_count++;
+        }
     }
     push @call, $aux_count, '{', @aux, '}';
 
@@ -1154,10 +1154,10 @@ sub get_text_stat {
 
     @res = $self->server_call(90, $textno);
     if ($self->is_error(@res)) {
-	return 0;
+        return 0;
     } else {
-	shift @res;		# Remove return code
-	return Net::Lyskom::TextStat->new_from_stream($self, $textno, \@res);
+        shift @res;             # Remove return code
+        return Net::Lyskom::TextStat->new_from_stream($self, $textno, \@res);
     }
 }
 
@@ -1177,18 +1177,18 @@ sub get_conf_stat {
 
     @tmp = $self->server_call([map {[91,$_]} @confno]);
     foreach (@tmp) {
-	if ($self->is_error(@{$_})) {
-	    push @res,undef;
-	} else {
-	    shift @{$_};		# Remove return code
-	    push @res, Net::Lyskom::Conference->new_from_stream($_);
-	}
+        if ($self->is_error(@{$_})) {
+            push @res,undef;
+        } else {
+            shift @{$_};                # Remove return code
+            push @res, Net::Lyskom::Conference->new_from_stream($_);
+        }
     }
 
     if (wantarray) {
-	return @res;
+        return @res;
     } else {
-	return $res[0];
+        return $res[0];
     }
 }
 
@@ -1214,18 +1214,18 @@ sub modify_text_info {
     push @call, $arg{text};
 
     if ($arg{delete}) {
-	foreach (@{$arg{delete}}) {
-	    push @del, $_;
-	    $del_count++;
-	}
+        foreach (@{$arg{delete}}) {
+            push @del, $_;
+            $del_count++;
+        }
     }
     push @call, $del_count, '{', @del, '}';
 
     if ($arg{add}) {
-	foreach (@{$arg{add}}) {
-	    push @aux, $_->to_server;
-	    $aux_count++;
-	}
+        foreach (@{$arg{add}}) {
+            push @aux, $_->to_server;
+            $aux_count++;
+        }
     }
     push @call, $aux_count, '{', @aux, '}';
 
@@ -1240,19 +1240,19 @@ backwards compatibility.
 
 =cut
 
-sub butt_ugly_fast_reply {	# Less ugly re-implementation
+sub butt_ugly_fast_reply {      # Less ugly re-implementation
     my $self = shift;
     my ($text, $data) = @_;
 
     $self->modify_text_info(
-			    text => $text,
-			    add => [
-				    Net::Lyskom::AuxItem->new(
-							      tag => "fast_reply",
-							      data => $data
-							     )
-				   ]
-			   );
+                            text => $text,
+                            add => [
+                                    Net::Lyskom::AuxItem->new(
+                                                              tag => "fast_reply",
+                                                              data => $data
+                                                             )
+                                   ]
+                           );
 }
 
 =item query_predefined_aux_items 
@@ -1267,10 +1267,10 @@ sub query_predefined_aux_items {
 
     @res = $self->server_call(96);
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;
-	return parse_array_stream(sub{shift @{$_[0]}},\@res);
+        shift @res;
+        return parse_array_stream(sub{shift @{$_[0]}},\@res);
     }
 }
 
@@ -1294,15 +1294,15 @@ sub get_membership {
     $arg{want_read_texts} = 1 unless $arg{want_read_texts};
 
     @res = $self->server_call(99,
-			      $arg{person},
-			      $arg{first},
-			      $arg{no_of_confs},
-			      ($arg{want_read_texts})?1:0);
+                              $arg{person},
+                              $arg{first},
+                              $arg{no_of_confs},
+                              ($arg{want_read_texts})?1:0);
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;    # Remove return code
-	return parse_array_stream(sub{Net::Lyskom::Membership->new_from_stream(@_)},\@res);
+        shift @res;    # Remove return code
+        return parse_array_stream(sub{Net::Lyskom::Membership->new_from_stream(@_)},\@res);
     }
 }
 
@@ -1322,10 +1322,10 @@ sub local_to_global {
 
     @res = $self->server_call(103, $arg{conf}, $arg{first}, $arg{number});
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;		# Remove return code
-	return Net::Lyskom::TextMapping->new_from_stream(\@res);
+        shift @res;             # Remove return code
+        return Net::Lyskom::TextMapping->new_from_stream(\@res);
     }
 }
 
@@ -1345,10 +1345,10 @@ sub map_created_texts {
 
     @res = $self->server_call(104, $arg{pers_no}, $arg{first}, $arg{number});
     if ($self->is_error(@res)) {
-	return ();
+        return ();
     } else {
-	shift @res;		# Remove return code
-	return Net::Lyskom::TextMapping->new_from_stream(\@res);
+        shift @res;             # Remove return code
+        return Net::Lyskom::TextMapping->new_from_stream(\@res);
     }
 }
 
@@ -1363,8 +1363,8 @@ sub set_membership_type {
     my %arg = @_;
     my $str = sprintf "%s%s%s00000",
       ($arg{invitation}?"1":"0"),
-	($arg{passive}?"1":"0"),
-	  ($arg{secret}?"1":"0");
+        ($arg{passive}?"1":"0"),
+          ($arg{secret}?"1":"0");
 
     return $self->gen_call_boolean(102, $arg{pers}, $arg{conf}, $str);
 }
@@ -1380,10 +1380,10 @@ sub get_members {
 
     @res = $self->server_call(101, $arg{conf}, $arg{first}, $arg{count});
     if ($self->is_error(@res)) {
-	return undef
+        return undef
     } else {
-	shift @res;
-	return parse_array_stream(sub{Net::Lyskom::Member->new_from_stream(@_)}, \@res)
+        shift @res;
+        return parse_array_stream(sub{Net::Lyskom::Member->new_from_stream(@_)}, \@res)
     }
 }
 
@@ -1401,10 +1401,10 @@ sub add_member {
 
     my $type = sprintf "%s%s%s00000",
       ($arg{invitation}?"1":"0"),
-	($arg{passive}?"1":"0"),
-	  ($arg{secret}?"1":"0");
+        ($arg{passive}?"1":"0"),
+          ($arg{secret}?"1":"0");
     return $self->gen_call_boolean(100, $arg{conf}, $arg{pers},
-				   $arg{priority}, $arg{where}, $type);
+                                   $arg{priority}, $arg{where}, $type);
 }
 
 =item query_read_texts($pers, $conf)
@@ -1420,10 +1420,10 @@ sub query_read_texts {
 
     my @res = $self->server_call(98,$pers,$conf);
     if ($self->is_error(@res)) {
-	return undef
+        return undef
     } else {
-	shift @res;
-	return Net::Lyskom::Membership->new_from_stream(\@res)
+        shift @res;
+        return Net::Lyskom::Membership->new_from_stream(\@res)
     }
 }
 
@@ -1465,10 +1465,10 @@ sub get_marks {
 
     my @res = $self->server_call(23);
     if ($self->is_error(@res)) {
-	return undef;
+        return undef;
     } else {
-	shift @res;
-	return parse_array_stream(sub{[splice @{$_[0]},0,2]},\@res);
+        shift @res;
+        return parse_array_stream(sub{[splice @{$_[0]},0,2]},\@res);
     }
 }
 
@@ -1520,11 +1520,11 @@ sub set_conf_type {
 
     my $type = sprintf "%s%s%s%s%s%s000",
       ($arg{rd_prot}?"1":"0"),
-	($arg{original}?"1":"0"),
-	  ($arg{secret}?"1":"0"),
-	    ($arg{letterbox}?"1":"0"),
-	      ($arg{allow_anonymous}?"1":"0"),
-		($arg{forbid_secret}?"1":"0");
+        ($arg{original}?"1":"0"),
+          ($arg{secret}?"1":"0"),
+            ($arg{letterbox}?"1":"0"),
+              ($arg{allow_anonymous}?"1":"0"),
+                ($arg{forbid_secret}?"1":"0");
     return $self->gen_call_boolean(21, $arg{conf}, $type);
 
 }
@@ -1627,18 +1627,18 @@ sub get_uconf_stat {
 
     @tmp = $self->server_call([map {[78,$_]} @confno]);
     foreach (@tmp) {
-	if ($self->is_error(@{$_})) {
-	    push @res,undef;
-	} else {
-	    shift @{$_};		# Remove return code
-	    push @res, Net::Lyskom::Conference->new_from_ustream($_);
-	}
+        if ($self->is_error(@{$_})) {
+            push @res,undef;
+        } else {
+            shift @{$_};                # Remove return code
+            push @res, Net::Lyskom::Conference->new_from_ustream($_);
+        }
     }
 
     if (wantarray) {
-	return @res;
+        return @res;
     } else {
-	return $res[0];
+        return $res[0];
     }
 }
 
@@ -1659,12 +1659,12 @@ sub set_info {
     $arg{motd_of_lyskom} = 0 unless $arg{motd_of_lyskom};
 
     return $self->gen_call_boolean(79, 0, # The zero must be there, see prot-a
-				   $arg{conf_pres_conf},
-				   $arg{pers_pres_conf},
-				   $arg{motd_conf},
-				   $arg{kom_news_conf},
-				   $arg{motd_of_lyskom}
-				  );
+                                   $arg{conf_pres_conf},
+                                   $arg{pers_pres_conf},
+                                   $arg{motd_conf},
+                                   $arg{kom_news_conf},
+                                   $arg{motd_of_lyskom}
+                                  );
 }
 
 =item accept_async(@call_numbers)
@@ -1692,9 +1692,9 @@ sub query_async {
 
     my @res = $self->server_call(81);
     if ($self->is_error(@res)) {
-	return undef
+        return undef
     } else {
-	return parse_array_stream(sub{shift @{$_[0]}},\@res);
+        return parse_array_stream(sub{shift @{$_[0]}},\@res);
     }
 }
 
@@ -1728,42 +1728,42 @@ sub create_anonymous_text {
 
     push @call, holl($arg{subject}."\n".$arg{body});
     if ($arg{recpt}) {
-	foreach (@{$arg{recpt}}) {
-	    push @misc, 0, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{recpt}}) {
+            push @misc, 0, $_;
+            $misc_count++;
+        }
     }
     if ($arg{cc_recpt}) {
-	foreach (@{$arg{cc_recpt}}) {
-	    push @misc, 1, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{cc_recpt}}) {
+            push @misc, 1, $_;
+            $misc_count++;
+        }
     }
     if ($arg{bcc_recpt}) {
-	foreach (@{$arg{bcc_recpt}}) {
-	    push @misc, 15, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{bcc_recpt}}) {
+            push @misc, 15, $_;
+            $misc_count++;
+        }
     }
     if ($arg{comm_to}) {
-	foreach (@{$arg{comm_to}}) {
-	    push @misc, 2, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{comm_to}}) {
+            push @misc, 2, $_;
+            $misc_count++;
+        }
     }
     if ($arg{footn_to}) {
-	foreach (@{$arg{footn_to}}) {
-	    push @misc, 4, $_;
-	    $misc_count++;
-	}
+        foreach (@{$arg{footn_to}}) {
+            push @misc, 4, $_;
+            $misc_count++;
+        }
     }
     push @call, $misc_count, '{', @misc, '}';
 
     if ($arg{aux}) {
-	foreach (@{$arg{aux}}) {
-	    push @aux, $_->to_server;
-	    $aux_count++;
-	}
+        foreach (@{$arg{aux}}) {
+            push @aux, $_->to_server;
+            $aux_count++;
+        }
     }
     push @call, $aux_count, '{', @aux, '}';
 
@@ -1791,20 +1791,20 @@ sub create_conf {
 
     my $type = sprintf "%s%s%s%s%s%s000",
       ($arg{rd_prot}?"1":"0"),
-	($arg{original}?"1":"0"),
-	  ($arg{secret}?"1":"0"),
-	    ($arg{letterbox}?"1":"0"),
-	      ($arg{allow_anonymous}?"1":"0"),
-		($arg{forbid_secret}?"1":"0");
+        ($arg{original}?"1":"0"),
+          ($arg{secret}?"1":"0"),
+            ($arg{letterbox}?"1":"0"),
+              ($arg{allow_anonymous}?"1":"0"),
+                ($arg{forbid_secret}?"1":"0");
 
     return $self->gen_call_scalar(88,
-				  holl($arg{name}),
-				  $type,
-				  scalar @{$arg{aux}},
-				  '{',
-				  map ({$_ and $_->to_server} @{$arg{aux}}),
-				  '}'
-				 );
+                                  holl($arg{name}),
+                                  $type,
+                                  scalar @{$arg{aux}},
+                                  '{',
+                                  map ({$_ and $_->to_server} @{$arg{aux}}),
+                                  '}'
+                                 );
 }
 
 =item create_person(name => $name, password => $pwd, unread_is_secret => $uis, aux => $aux_array_ref)
@@ -1824,14 +1824,14 @@ sub create_person {
     my $type = sprintf "%s0000000", ($arg{unread_is_secret}?"1":"0");
 
     return $self->gen_call_scalar(89,
-				  holl($arg{name}),
-				  holl($arg{password}),
-				  $type,
-				  scalar @{$arg{aux}},
-				  '{',
-				  map ({$_ and $_->to_server} @{$arg{aux}}),
-				  '}'
-				 );
+                                  holl($arg{name}),
+                                  holl($arg{password}),
+                                  $type,
+                                  scalar @{$arg{aux}},
+                                  '{',
+                                  map ({$_ and $_->to_server} @{$arg{aux}}),
+                                  '}'
+                                 );
 }
 
 =item modify_conf_info(conf => $conf, delete => $del_array_ref, add => $add_array_ref)
@@ -1851,11 +1851,11 @@ sub modify_conf_info {
 
     return undef unless $arg{conf};
     return $self->gen_call_boolean(93, $arg{conf},
-				   scalar @{$arg{delete}},
-				   '{',@{$arg{delete}},'}',
-				   scalar @{$arg{add}},
-				   '{', map {$_->to_server} @{$arg{add}},'}'
-				   );
+                                   scalar @{$arg{delete}},
+                                   '{',@{$arg{delete}},'}',
+                                   scalar @{$arg{add}},
+                                   '{', map {$_->to_server} @{$arg{add}},'}'
+                                   );
 }
 
 =item modify_system_info(delete => $del_array_ref, add => $add_array_ref)
@@ -1873,11 +1873,11 @@ sub modify_system_info {
     $arg{add} = [] unless $arg{add};
 
     return $self->gen_call_boolean(95,
-				   scalar @{$arg{delete}},
-				   '{',@{$arg{delete}},'}',
-				   scalar @{$arg{add}},
-				   '{', map {$_->to_server} @{$arg{add}},'}'
-				   );
+                                   scalar @{$arg{delete}},
+                                   '{',@{$arg{delete}},'}',
+                                   scalar @{$arg{add}},
+                                   '{', map {$_->to_server} @{$arg{add}},'}'
+                                   );
 
 }
 
@@ -1921,9 +1921,9 @@ sub get_info {
 
     my @res = $self->server_call(94);
     if ($self->is_error(@res)) {
-	return undef;
+        return undef;
     } else {
-	return Net::Lyskom::Info->new_from_stream(\@res);
+        return Net::Lyskom::Info->new_from_stream(\@res);
     }
 }
 

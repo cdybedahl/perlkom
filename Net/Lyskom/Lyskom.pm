@@ -569,7 +569,9 @@ sub get_text {
     my %arg = @_;
     my @res;
 
-    $arg{text} = 4711 unless $arg{text};
+    unless ($arg{text}) {
+        croak "get_text() called with no text number argument";
+    }
     $arg{start_char} = 0 unless $arg{start_char};
     $arg{end_char} = 2147483647 unless $arg{end_char};
 

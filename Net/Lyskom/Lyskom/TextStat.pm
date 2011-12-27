@@ -117,18 +117,25 @@ sub aux_items {
     return @{$s->{aux_item}};
 }
 
+sub _fetch_subject_and_body {
+    my $s = shift;
+
+    my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
+    my ($subj, $body) = split(/\n/, $raw, 2);
+
+    $s->{subject} = $subj;
+    $s->{body} = $body;
+}
+
 sub subject {
     my $s = shift;
 
     return $s->{subject} if exists($s->{subject});
     return undef unless $s->{connection} && $s->{textno};
 
-    my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
-    my ($subj, $body) = split(/\n/, $raw, 2);
-    $s->{subject} = $subj;
-    $s->{body} = $body;
+    $s->_fetch_subject_and_body();
 
-    return $subj;
+    return $s->{subject};
 }
 
 sub body {
@@ -137,12 +144,9 @@ sub body {
     return $s->{body} if exists($s->{body});
     return undef unless $s->{connection} && $s->{textno};
 
-    my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
-    my ($subj, $body) = split(/\n/, $raw, 2);
-    $s->{subject} = $subj;
-    $s->{body} = $body;
+    $s->_fetch_subject_and_body();
 
-    return $body;
+    return $s->{body};
 }
 
 sub new_from_stream {

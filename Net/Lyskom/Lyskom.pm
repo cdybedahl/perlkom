@@ -4,6 +4,7 @@ use base qw{Net::Lyskom::Object};
 use strict;
 use IO::Socket;
 use Time::Local;
+use Encode;
 use Net::Lyskom::AuxItem;
 use Net::Lyskom::MiscInfo;
 use Net::Lyskom::Time;
@@ -1097,6 +1098,19 @@ sub create_text {
     my @aux;
     my $aux_count = 0;
     my @call;
+
+    if (
+        !$arg{aux}
+        or scalar(grep {$_->tag == 1} @{$arg{aux}})==0
+       ) {
+        # No Aux-items, or at least no Content-Type
+        push @{$arg{aux}}, Net::Lyskom::AuxItem->new(
+                                                     tag => 'content_type',
+                                                     data => 'text/x-kom-basic;charset=utf-8'
+                                                    );
+        $arg{subject} = encode_utf8($arg{subject});
+        $arg{body} = encode_utf8($arg{body});
+    }
 
     push @call, holl($arg{subject}."\n".$arg{body});
     if ($arg{recpt}) {

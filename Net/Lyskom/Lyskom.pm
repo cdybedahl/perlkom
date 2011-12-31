@@ -1,4 +1,7 @@
 package Net::Lyskom;
+
+use 5.8.3;
+
 use base qw{Net::Lyskom::Object};
 
 use strict;

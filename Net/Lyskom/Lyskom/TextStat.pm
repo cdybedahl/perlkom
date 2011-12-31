@@ -66,6 +66,12 @@ both the subject and body internally. Both this method and the
 following one always fetch the entire text. If you want something
 else, call get_text() yourself.
 
+If the fetched text has a content-type AuxItem, and the running Perl
+instance knows how to convert from that encoding, the subject will be
+decoded into Perl's internal representation before being returned. If
+there is no declared content type or the running Perl can't deal with
+it, the content will be left untouched.
+
 =item ->body()
 
 As above, but return the body instead of the subject.

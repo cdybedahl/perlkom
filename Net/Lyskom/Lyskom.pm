@@ -25,7 +25,7 @@ use Carp;
 use vars qw{ @error };
 
 
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 
 =head1 NAME
 
@@ -1073,6 +1073,12 @@ arrayrefs as values, as appropriate). Any of the arguments can be left
 out, but a text without at least one recipient is not very useful (nor
 is one with neither subject nor body). The C<aux> argument should be a
 reference to a list of L<Net::Lyskom::AuxInfo> objects.
+
+If the C<aux> list is not given, or given but not containing a
+content-type item, an item with content type
+C<text/x-kom-basic;charset=utf-8> will be added. In this case, the
+subject and body will also be converted from Perl's internal encoding
+to UTF-8 before being sent out over the network. 
 
 Example:
 

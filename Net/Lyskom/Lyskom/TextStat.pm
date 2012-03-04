@@ -127,7 +127,11 @@ sub aux_items {
 sub _fetch_subject_and_body {
     my $s = shift;
 
-    my $raw = $s->{connection}->get_text(text => $s->{textno}) or croak;
+    my $raw = $s->{connection}->get_text(text => $s->{textno});
+
+    if (!defined($raw)) {
+        die 'get_text returned undefined for text number ' . $s->{textno};
+    }
 
     my ($ct) = grep {$_->tag == 1} $s->aux_items;
     if ($ct) {

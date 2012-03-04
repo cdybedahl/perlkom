@@ -1,4 +1,4 @@
-use Test::More tests => 21;
+use Test::More tests => 22;
 use Data::Dumper;
 
 # Does the module even load?
@@ -55,6 +55,9 @@ is($stat->subject, "Stort jubileum!", "correct text subject");
 
 # Who am I?
 cmp_ok($kom->who_am_i,'>',1, "our session number is higher than 1");
+
+# Tests for specific bugs
+isa_ok($kom->get_text_stat(910847), 'Net::Lyskom::TextStat', 'Can fetch empty text without dying');
 
 # Logout
 isa_ok($kom->logout,"Net::Lyskom","return value from logout");

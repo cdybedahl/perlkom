@@ -59,13 +59,14 @@ sub new_from_stream {
     $class = ref($class) if ref($class);
     bless $s, $class;
 
+    shift @{$ref}; # Toss call id number.
     $s->{version} = shift @{$ref};
     $s->{conf_pres_conf} = shift @{$ref};
     $s->{pers_pres_conf} = shift @{$ref};
     $s->{motd_conf} = shift @{$ref};
-    $s->{kom_news_conf} = @{$ref};
-    $s->{motd_of_lyskom} = @{$ref};
-    $s->{aux_item_list} = [parse_array_stream(sub{Net::Lyskom::AuxInfo->new_from_stream(@_)},$ref)];
+    $s->{kom_news_conf} = shift @{$ref};
+    $s->{motd_of_lyskom} = shift @{$ref};
+    $s->{aux_item_list} = [parse_array_stream(sub{Net::Lyskom::AuxItem->new_from_stream(@_)},$ref)];
 
     return $s;
 }
